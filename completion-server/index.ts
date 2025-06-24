@@ -184,6 +184,9 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
   const summaryBot = new SummarizationService(store, agent, {
     frequency: 15 * 1000,
   });
+  //  const vectorBot = new VectorService(store, agent, {
+  //   frequency: 15 * 1000,
+  // });
 
   startRecording(callSid).then(({ mediaUrl }) => {
     log.success("/convo-relay", `call recording url: ${mediaUrl}`);
@@ -222,6 +225,7 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
     // start subconscious
     governanceBot.start();
     summaryBot.start();
+    //vectorBot.start();
   });
 
   relay.onPrompt((ev) => {
@@ -267,6 +271,7 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
   ws.on("close", () => {
     governanceBot.stop();
     summaryBot.stop();
+    //vectorBot.stop();
 
     log.info(
       "relay",

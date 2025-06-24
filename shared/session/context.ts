@@ -8,6 +8,7 @@ export interface SessionContext {
   auxiliaryMessages: Record<string, AuxiliaryMessage>; // messages sent to the user outside of the conversation
   call: CallDetails;
   company: CompanyDetails;
+  datagraph: Datagraph;
   contactCenter: ContactCenter;
   governance: GovernanceState;
   procedures: Record<string, Procedure>;
@@ -66,4 +67,9 @@ export interface CompanyDetails {
   name: string;
   description: string;
   email: string;
+}
+export interface Datagraph {
+  name: string;
+  // json string of datagraph definition
+  value: string;
 }

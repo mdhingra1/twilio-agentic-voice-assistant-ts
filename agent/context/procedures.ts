@@ -1,5 +1,5 @@
 import type { Procedure } from "../types.js";
-
+// TODO: update
 export const procedures: Record<string, Procedure> = [
   {
     id: "identify_user",
@@ -27,12 +27,49 @@ export const procedures: Record<string, Procedure> = [
           "Ensure email format is valid or phone number is in correct format",
       },
       {
-        id: "confirm_identity",
-        description: "Confirm user identity using available information",
+        id: "create_or_update_user_profile",
+        description:
+          "Update or create a new user profile if it does not exist.",
+        strictness: "conditional",
+        completionCriteria:
+          "New user profile created or existing profile updated",
+        conditions:
+          "This is not required when a profile already exists for the user. ",
+        instructions: "Use the identify_user tool to update or create the user profile.",
+      },
+    ],
+  },
+    {
+    id: "greet_user",
+    description:
+      "Fetch user profile information and greet the user accordingly",
+    steps: [
+      {
+        id: "get_profile_traits",
+        description:
+          "Gather profile traits for user.",
         strictness: "required",
-        completionCriteria: "User has verbally confirmed their identity",
-        instructions:
-          "If profile exists in context, confirm name. Otherwise, confirm details from identifier.",
+        completionCriteria:
+          "Traits have been fetched from the user profile",
+        instructions: "use getProfileTraits tool to fetch user profile traits, use format user_id:{user_id}",
+      },
+      {
+        id: "get_profile_events",
+        description:
+          "Gather profile events for user.",
+        strictness: "required",
+        completionCriteria:
+          "Events have been fetched from the user profile",
+        instructions: "use getProfileEvents tool to fetch last 20 traits for user, use format user_id:{user_id}",
+      },
+      {
+        id: "greet_user",
+        description:
+          "Generate a personalized greeting using the profile events and traits.",
+        strictness: "required",
+        completionCriteria:
+          "You have greeted the user with a personalized message",
+        instructions: "Say hi {name}, and reference information relevant to their profile. Example: 'Hi John, I see you recently purchased a new laptop. Are you calling about this order?'",
       },
     ],
   },
