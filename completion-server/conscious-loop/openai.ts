@@ -1,10 +1,4 @@
 import OpenAI from "openai";
-import type {
-  ChatCompletionChunk,
-  ChatCompletionMessageParam,
-  ChatCompletionTool,
-} from "openai/resources/index";
-import type { ChatCompletionCreateParamsStreaming } from "openai/src/resources/index.js";
 import type { Stream } from "openai/streaming";
 import { v4 as uuidV4 } from "uuid";
 import type { ToolDefinition, ToolResponse } from "../../agent/types.js";
@@ -25,22 +19,33 @@ import type { SessionStore } from "../session-store/index.js";
 import type { ConversationRelayAdapter } from "../twilio/conversation-relay.js";
 import type { ConsciousLoopEvents, IConsciousLoop } from "./types.js";
 
+// --- Add these imports for responses API ---
+import type {
+  Responses,
+  ResponseCreateParamsStreaming,
+  ResponseStreamEvent,
+  ResponseOutputMessage,
+  ResponseFunctionToolCall,
+  Tool as ResponseTool,
+  ResponseInputItem,
+} from "openai/resources/responses/responses";
+
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const LLM_MAX_RETRY_ATTEMPTS = 3;
 
 export class OpenAIConsciousLoop
-  implements
-    IConsciousLoop<
-      OpenAIConfig,
-      ChatCompletionTool[] | undefined,
-      ChatCompletionMessageParam[]
-    >
+    implements
+        IConsciousLoop<
+            OpenAIConfig,
+            ResponseTool[] | undefined,
+            ResponseInputItem[]
+            >
 {
   private log: ReturnType<typeof getMakeLogger>;
   constructor(
-    public store: SessionStore,
-    public agent: IAgentResolver,
-    public relay: ConversationRelayAdapter,
+      public store: SessionStore,
+      public agent: IAgentResolver,
+      public relay: ConversationRelayAdapter,
   ) {
     this.log = getMakeLogger(store.callSid);
     this.eventEmitter = new TypedEventEmitter<ConsciousLoopEvents>();
@@ -52,7 +57,7 @@ export class OpenAIConsciousLoop
     });
   }
 
-  private stream?: Stream<ChatCompletionChunk>;
+  private stream?: Stream<ResponseStreamEvent>;
   private activeCompletionId: string | undefined; // keeps track of
 
   run = async (): Promise<undefined | Promise<any>> => {
@@ -67,15 +72,15 @@ export class OpenAIConsciousLoop
     // There should only be one completion stream open at a time.
     if (this.stream) {
       this.log.warn(
-        "llm",
-        "Starting a completion while one is already underway. Previous completion will be aborted.",
+          "llm",
+          "Starting a completion while one is already underway. Previous completion will be aborted.",
       );
       this.abort(); // judgement call: should previous completion be aborted or should the new one be cancelled?
     }
   };
 
   private doCompletion = async (
-    attempt = 0,
+      attempt = 0,
   ): Promise<undefined | Promise<any>> => {
     const completionId = uuidV4();
     this.activeCompletionId = completionId;
@@ -84,11 +89,12 @@ export class OpenAIConsciousLoop
 
     const messages = this.getTurns();
 
-    let args: ChatCompletionCreateParamsStreaming | undefined;
+    let args: ResponseCreateParamsStreaming | undefined;
     try {
       const tools = this.getTools();
-      args = { ...this.getConfig(), messages, stream: true, tools };
-      this.stream = await openai.chat.completions.create(args);
+      args = { ...this.getConfig(), input: messages, stream: true, tools };
+      // Use the new responses API instead of completions API
+      this.stream = await openai.responses.create(args);
     } catch (error) {
       const _args = JSON.stringify({ turns: this.store.turns.list(), ...args });
       this.log.error("llm", "Error attempting completion", error, "\n", _args);
@@ -100,96 +106,171 @@ export class OpenAIConsciousLoop
 
     let finish_reason: Finish_Reason | null = null;
 
-    for await (const chunk of this.stream) {
-      const choice = chunk.choices[0];
-      const delta = choice.delta;
+    // Track message state for streaming text
+    let currentMessageId: string | undefined;
+    let currentText = "";
 
-      const content =
-        delta.content || (delta.content === null ? "" : delta.content);
 
-      const isTextDelta = content !== undefined;
-      const isToolDelta = "tool_calls" in delta;
+    // --- Tool call streaming state ---
+    let toolCallArgsMap: Record<string, string> = {};
+    let toolCallIndexMap: Record<string, number> = {};
 
-      const isFirstTextDelta = isTextDelta && !botText;
-      const isFirstToolDelta = isToolDelta && !botTool;
-      const isNewTool = isToolDelta && !!delta?.tool_calls?.[0].id; // One completion may have multiple tools, but the position in the tool_call array will always be 0. "id" is only emitted during the first delta of a new tool. There is also an "index" property on the tool_call object, that can also track this.
+    for await (const event of this.stream) {
+      // Uncomment for debugging:
+      console.log("Received event:", event.type);
+      console.log("Received event:", event);
 
-      if (!finish_reason) finish_reason = choice.finish_reason;
+      switch (event.type) {
+        case "response.created":
+        case "response.in_progress":
+        case "response.queued":
+          // These events can be used for logging or progress indication
+          break;
 
-      let params: BotTextTurnParams | BotToolTurnParams | undefined;
+        case "response.output_item.added":
+          if (event.item.type === "message") {
+            // Start of a new assistant message
+            currentMessageId = event.item.id;
+            currentText = "";
+            if (!botText) {
+              botText = this.store.turns.addBotText({
+                content: "",
+                id: event.item.id,
+                origin: "llm",
+                status: "streaming",
+              });
+              this.emit("text-chunk", "", false, "");
+            }
+          } else if (event.item.type === "function_call") {
+            // Add new tool call to botTool.tool_calls array
+            if (!botTool) {
+              botTool = this.store.turns.addBotTool({
+                id: event.item.id,
+                origin: "llm",
+                status: "streaming",
+                tool_calls: [],
+              });
+            }
+            const idx = botTool.tool_calls.length;
+            botTool.tool_calls.push({
+              ...event.item,
+              function: {
+                name: event.item.name,
+                arguments: "",
+              },
+            } as StoreToolCall);
+            toolCallArgsMap[event.item.id] = "";
+            toolCallIndexMap[event.item.id] = idx;
+            const toolName = event.item.name;
+            if (toolName) this.agent.queueFillerPhrase(botTool.id, toolName);
+          }
+          break;
 
-      // todo: add dtmf logic
+        case "response.function_call_arguments.delta":
+          if (botTool && event.item_id in toolCallIndexMap) {
+            toolCallArgsMap[event.item_id] += event.delta;
+            const idx = toolCallIndexMap[event.item_id];
+            botTool.tool_calls[idx].function.arguments = toolCallArgsMap[event.item_id];
+          }
+          break;
 
-      // handle the first text chunk of a botText completion
-      if (isFirstTextDelta) {
-        params = {
-          content,
-          id: chunk.id,
-          origin: "llm",
-          status: "streaming",
-        };
-        botText = this.store.turns.addBotText(params);
-        this.emit("text-chunk", content, false, botText.content);
-      }
+        case "response.function_call_arguments.done":
+          if (botTool && event.item_id in toolCallIndexMap) {
+            toolCallArgsMap[event.item_id] = event.arguments;
+            const idx = toolCallIndexMap[event.item_id];
+            botTool.tool_calls[idx].function.arguments = event.arguments;
+          }
+          break;
 
-      // handle subsequent chunks of botText completion
-      if (isTextDelta && !isFirstTextDelta) {
-        if (botText?.type !== "text") throw Error("Expected text"); // type guard, should be unreachable
-        botText.content += delta.content;
-        this.emit("text-chunk", content, !!finish_reason, botText.content);
-      }
+        case "response.output_item.done":
+          if (
+              event.item.type === "function_call" &&
+              botTool &&
+              event.item.id in toolCallIndexMap
+          ) {
+            const idx = toolCallIndexMap[event.item.id];
+            botTool.tool_calls[idx].function.arguments = event.item.arguments;
+            botTool.tool_calls[idx].function.name = event.item.name;
+            // Optionally, mark tool call as complete
+            botTool.tool_calls[idx].status = "completed";
+            // If all tool calls are complete, set finish_reason
+            if (
+                botTool.tool_calls.every(
+                    (tc) => tc.function.arguments && tc.status === "completed"
+                )
+            ) {
+              botTool.status = "complete";
+              finish_reason = "tool_calls";
+            }
+          }
+          // Add tool/function call handling here if needed
+          break;
 
-      // handles the first chunk of the first tool
-      if (isToolDelta && isFirstToolDelta) {
-        if (!("tool_calls" in delta)) throw Error("No tool_calls in 1st delta"); // should be unreachable
-        params = {
-          id: chunk.id,
-          origin: "llm",
-          status: "streaming",
-          tool_calls: delta.tool_calls as StoreToolCall[],
-        }; // isFirstToolDelta
-        botTool = this.store.turns.addBotTool(params);
+        case "response.output_text.delta":
+          if (event.item_id === currentMessageId) {
+            currentText += event.delta;
+            if (botText) {
+              botText.content = currentText;
+              this.emit("text-chunk", event.delta, false, botText.content);
+            }
+          }
+          break;
 
-        const toolName = delta?.tool_calls?.[0]?.function?.name;
-        if (toolName) this.agent.queueFillerPhrase(botTool.id, toolName);
-      }
+        case "response.output_text.done":
+          if (event.item_id === currentMessageId) {
+            if (botText) {
+              botText.content = event.text;
+              botText.status = "complete";
+              this.emit("text-chunk", "", true, botText.content);
+            }
+            finish_reason = "stop";
+          }
+          break;
 
-      // handles the first chunk of subsequent tools
-      if (isToolDelta && !isFirstToolDelta && isNewTool) {
-        const deltaTool = delta?.tool_calls?.[0]; // openai quirk: tools will always be in the first position of the chunk array. their actual array position is defined by the "index" property on the tool.
-        if (!botTool?.tool_calls) throw Error(`No tool_calls in nth delta`); // should be unreachable
-        if (deltaTool?.index === undefined)
-          throw Error("No index on deltaTool"); // should be unreachable
+        case "response.output_item.added":
+          if (event.item.type === "function_call") {
+            const toolCall = event.item as ResponseFunctionToolCall;
+            if (!botTool) {
+              botTool = this.store.turns.addBotTool({
+                id: toolCall.id || event.item.id,
+                origin: "llm",
+                status: "streaming",
+                tool_calls: [toolCall as StoreToolCall],
+              });
+              const toolName = toolCall.name;
+              if (toolName) this.agent.queueFillerPhrase(botTool.id, toolName);
+            }
+          }
+          break;
 
-        botTool.tool_calls[deltaTool?.index as number] =
-          deltaTool as StoreToolCall; // the store StoreToolCall is same as OpenAI ToolCall. translator needed for other llm formats
-      }
+        case "response.completed":
+          // finish_reason = "stop";
+          break;
 
-      // handles subsequent chunks of all tool completions
-      if (isToolDelta && !isFirstToolDelta && !isNewTool) {
-        const toolDelta = delta?.tool_calls?.[0] as StoreToolCall;
-        const tool = botTool?.tool_calls[toolDelta.index];
-        if (!tool) throw Error("tool_call not found"); // should be unreachable
+          // Add more event types as needed for tool calls, refusals, etc.
 
-        // mutate the tool_call record of the store message
-        tool.function.name += toolDelta.function.name ?? "";
-        tool.function.arguments += toolDelta.function.arguments ?? "";
+        default:
+          // ...existing code...
+          break;
       }
     }
 
     /****************************************************
      Handle Completion Finish
-    ****************************************************/
+     ****************************************************/
     if (finish_reason === "stop") {
       if (!botText) throw Error("finished for 'stop' but no BotText"); // should be unreachable
       botText.status = "complete";
       this.emit("text-chunk", "", true, botText.content);
+      return
     }
 
     if (finish_reason === "tool_calls") {
+      console.log("Handling tool calls completion", botTool?.tool_calls);
       if (!botTool) throw Error("finished for tool_calls but no BotTool"); // should be unreachable
 
       await this.handleToolExecution(botTool);
+      console.log("Tool execution completed");
       if (botTool.status === "streaming") botTool.status = "complete";
 
       if (this.activeCompletionId !== completionId) return; // check to make the stream that started this completion is still the same. if it's not, that means there was an interruption or error. a subsequent completion is not warranted
@@ -211,34 +292,34 @@ export class OpenAIConsciousLoop
 
   handleToolExecution = async (botTool: BotToolTurn) => {
     const executions = await Promise.all(
-      botTool.tool_calls.map(async (tool) => {
-        try {
-          this.emit("tool.starting", botTool, tool);
-
-          let args: object | undefined;
+        botTool.tool_calls.map(async (tool) => {
           try {
-            args = JSON.parse(tool.function.arguments);
-          } catch (error) {
-            log.warn(
-              "llm",
-              `error parsing tool (${tool.function.name}), args: `,
-              tool.function.arguments,
+            this.emit("tool.starting", botTool, tool);
+
+            let args: object | undefined;
+            try {
+              args = JSON.parse(tool.function.arguments);
+            } catch (error) {
+              log.warn(
+                  "llm",
+                  `error parsing tool (${tool.function.name}), args: `,
+                  tool.function.arguments,
+              );
+            }
+
+            const result = await this.agent.executeTool(
+                botTool.id,
+                tool.function.name,
+                args,
             );
+
+            return { result, tool };
+          } catch (error) {
+            this.log.warn("llm", "Error while executing a tool", error);
+            const result: ToolResponse = { status: "error", error: "unknown" };
+            return { tool, result };
           }
-
-          const result = await this.agent.executeTool(
-            botTool.id,
-            tool.function.name,
-            args,
-          );
-
-          return { result, tool };
-        } catch (error) {
-          this.log.warn("llm", "Error while executing a tool", error);
-          const result: ToolResponse = { status: "error", error: "unknown" };
-          return { tool, result };
-        }
-      }),
+        }),
     );
 
     if (botTool.status !== "interrupted") {
@@ -254,24 +335,24 @@ export class OpenAIConsciousLoop
   };
 
   private handleRetry = async (attempt: number) =>
-    new Promise((resolve) => {
-      this.abort(); // set stream to undefined
+      new Promise((resolve) => {
+        this.abort(); // set stream to undefined
 
-      setTimeout(() => {
-        if (this.stream) return resolve(null);
-        if (attempt > LLM_MAX_RETRY_ATTEMPTS) {
-          const message = `LLM completion failed more than max retry attempt`;
-          this.log.error(`llm`, message);
-          this.relay.end({ reason: "error", message });
-          return resolve(null);
-        }
+        setTimeout(() => {
+          if (this.stream) return resolve(null);
+          if (attempt > LLM_MAX_RETRY_ATTEMPTS) {
+            const message = `LLM completion failed more than max retry attempt`;
+            this.log.error(`llm`, message);
+            this.relay.end({ reason: "error", message });
+            return resolve(null);
+          }
 
-        if (attempt > 0)
-          this.log.info(`llm`, `Completion retry attempt: ${attempt}`);
+          if (attempt > 0)
+            this.log.info(`llm`, `Completion retry attempt: ${attempt}`);
 
-        resolve(this.doCompletion(attempt));
-      }, 1000);
-    });
+          resolve(this.doCompletion(attempt));
+        }, 1000);
+      });
 
   /**
    * Aborts and cleans up the existing completion loop
@@ -291,149 +372,145 @@ export class OpenAIConsciousLoop
   };
 
   // translate this app's tool schema into OpenAI format
-  getTools = (): ChatCompletionTool[] | undefined => {
+  getTools = (): ResponseTool[] | undefined => {
     const tools = this.agent
-      .getTools()
-      .map(this.translateToolSpec)
-      .filter((tool) => !!tool);
+        .getTools()
+        .map(this.translateToolSpec)
+        .filter((tool) => !!tool);
 
     return tools.length ? tools : undefined;
   };
 
   private translateToolSpec = (
-    tool: ToolDefinition,
-  ): ChatCompletionTool | undefined => {
-    if (tool.type === "function") {
+      tool: ToolDefinition,
+  ): ResponseTool | undefined => {
+    if (tool.type === "function" || tool.type === "request") {
       return {
         type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      } as ChatCompletionTool;
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+        strict: true,
+      } as ResponseTool;
     }
-
-    if (tool.type === "request") {
-      return {
-        type: "function",
-        function: {
-          name: tool.name,
-          description: tool.description,
-          parameters: tool.parameters,
-        },
-      } as ChatCompletionTool;
-    }
-
     log.warn("openai", `unable to translate tool`, JSON.stringify(tool));
   };
 
   // translate this app's turn schema into OpenAI format
   getTurns = () =>
-    [
-      this.makeSystemParam(),
-      ...this.store.turns
-        .list()
-        .filter(
-          (turn) => (turn.role === "bot" ? turn.origin !== "filler" : true), // filler phrases can confuse the bot because they break from the bot's natural completion flow
-        )
-        .flatMap(this.translateStoreTurnToLLMParam)
-        .filter((msg) => {
-          if (!msg) return false;
-          if ("content" in msg && msg.content === null) return false;
-          if ("content" in msg && msg.content === undefined) return false;
-
-          return true;
-        }),
-    ] as ChatCompletionMessageParam[];
+      [
+        this.makeSystemParam(),
+        ...this.store.turns
+            .list()
+            .filter(
+                (turn) => (turn.role === "bot" ? turn.origin !== "filler" : true),
+            )
+            .flatMap(this.translateStoreTurnToLLMParam)
+            .filter((msg) => !!msg),
+      ] as ResponseInputItem[];
 
   private makeSystemParam = () => ({
-    content: this.agent.getInstructions(),
     role: "system",
+    content: this.agent.getInstructions()
   });
 
   /**
-   * Converts the store's turn schema to the OpenAI parameter schema required by their completion API
+   * Converts the store's turn schema to the OpenAI parameter schema required by their responses API
    */
   translateStoreTurnToLLMParam = (
-    turn: TurnRecord,
-  ): ChatCompletionMessageParam | ChatCompletionMessageParam[] | null => {
+      turn: TurnRecord,
+  ): ResponseInputItem | ResponseInputItem[] | null => {
+    // DTMF and text bot turns become assistant messages
     if (turn.role === "bot" && turn.type === "dtmf")
-      return { role: "assistant", content: turn.content };
+      return {
+        role: "assistant",
+        content: turn.content,
+      };
     if (turn.role === "bot" && turn.type === "text")
-      return { role: "assistant", content: turn.content };
+      return {
+        role: "assistant",
+        content: turn.content,
+      };
 
-    if (turn.role === "human") return { role: "user", content: turn.content };
+    // Human/user turns
+    if (turn.role === "human")
+      return {
+        role: "user",
+        content: [{ type: "input_text", text: turn.content }],
+        type: "message",
+      };
+    // System turns
     if (turn.role === "system")
-      return { role: "system", content: turn.content };
+      return {
+        role: "system",
+        content:turn.content,
+      };
 
+    // Tool turns: emit the function call(s) and their result(s)
     if (turn.role === "bot" && turn.type === "tool") {
-      // OpenAI expects tools to be provided as such:
-      // (1) the message requesting the tool(s) to be executed
-      // (2) one message for each tool result following immediately after the previous message.
+      // (1) The assistant's function call(s)
+      const toolCalls: ResponseInputItem[] = turn.tool_calls.map((tool) => ({
+        type: "function_call",
+        id: tool.id,
+        call_id: tool.call_id,
+        name: tool.function.name,
+        arguments: tool.function.arguments,
+        status: tool.status ?? "completed",
+      }));
 
-      // Tool turns are blown out into an array, which will be flatMapped once returned.
-      let msgs: ChatCompletionMessageParam[] = [
-        {
-          role: "assistant",
-          tool_calls: turn.tool_calls.map(({ result, ...tool }) => tool),
-        },
-      ];
+      // (2) The tool results, as function_call_output
+      const toolResults: ResponseInputItem[] = turn.tool_calls
+          .filter((tool) => tool.result !== null)
+          .map((tool) => ({
+            type: "function_call_output",
+            call_id: tool.call_id,
+            output: (() => {
+              try {
+                return JSON.stringify(tool.result ?? { status: "error", error: "unknown" });
+              } catch {
+                return `{"status": "error", "error": "unknown" }`;
+              }
+            })(),
+          }));
 
-      for (const tool of turn.tool_calls) {
-        if (tool.result === null) {
-          this.log.warn(
+      // If any tool.result is null, skip this turn
+      if (turn.tool_calls.some((tool) => tool.result === null)) {
+        this.log.warn(
             "llm",
             "A Tool Call has null result, which should never happen. This turn will be filtered",
-            JSON.stringify({ turn, tool, allTurns: this.store.turns.list() }),
-          );
-          return null;
-        }
-
-        let content: string;
-        try {
-          content = JSON.stringify(
-            tool.result ?? { status: "error", error: "unknown" },
-          );
-        } catch (err) {
-          this.log.warn(
-            "llm",
-            "Error parsing tool result",
-            JSON.stringify({ turn, tool, allTurns: this.store.turns.list() }),
-          );
-          content = `{"status": "error", "error": "unknown" }`;
-        }
-
-        msgs.push({ role: "tool", content, tool_call_id: tool.id });
+            JSON.stringify({ turn, allTurns: this.store.turns.list() }),
+        );
+        return null;
       }
 
-      return msgs;
+      // Return the function call(s) and their output(s) in order
+      return [...toolCalls, ...toolResults];
     }
 
+    // Unknown turn type
     this.log.warn(
-      "llm",
-      "StoreTurn not recognized by LLM translator.",
-      JSON.stringify({ turn, allTurns: this.store.turns.list() }),
+        "llm",
+        "StoreTurn not recognized by LLM translator.",
+        JSON.stringify({ turn, allTurns: this.store.turns.list() }),
     );
-
     return null;
   };
 
   /****************************************************
    Event Type Casting
-  ****************************************************/
+   ****************************************************/
   private eventEmitter: TypedEventEmitter<ConsciousLoopEvents>;
   public on: TypedEventEmitter<ConsciousLoopEvents>["on"] = (...args) =>
-    this.eventEmitter.on(...args);
+      this.eventEmitter.on(...args);
   private emit: TypedEventEmitter<ConsciousLoopEvents>["emit"] = (
-    event,
-    ...args
+      event,
+      ...args
   ) => this.eventEmitter.emit(event, ...args);
 }
 
 type Finish_Reason =
-  | "content_filter"
-  | "function_call"
-  | "length"
-  | "stop"
-  | "tool_calls";
+    | "content_filter"
+    | "function_call"
+    | "length"
+    | "stop"
+    | "tool_calls";
