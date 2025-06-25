@@ -57,47 +57,47 @@ export const commonToolManifest: ToolDefinition[] = [
       required: ["external_id"],
     },
   },
-          {
-            name: "identify_user",
-            description: "Update user traits and profile information in Segment",
-            type: "function",
-            parameters: {
+  {
+    name: "identify_user",
+    description: "Update user traits and profile information in Segment",
+    type: "function",
+    parameters: {
+        type: "object",
+        properties: {
+            user_id: {
+                type: "string",
+                description: "The unique identifier for the user",
+            },
+            traits: {
                 type: "object",
-                properties: {
-                    user_id: {
-                        type: "string",
-                        description: "The unique identifier for the user",
-                    },
-                    traits: {
-                        type: "object",
-                        description: "User traits to update",
-                        properties: {},
-                        additionalProperties: true,
-                    },
-                    anonymous_id: {
-                        type: "string",
-                        description: "Anonymous identifier to link with user_id",
-                    },
-                    timestamp: {
-                        type: "string",
-                        description: "ISO 8601 timestamp (defaults to current time)",
-                    },
-                    context: {
-                        type: "object",
-                        description: "Additional context information",
-                                                properties: {},
-                        additionalProperties: true,
-                    },
-                    integrations: {
-                        type: "object",
-                        description: "Integration-specific settings",
-                                                properties: {},
-                        additionalProperties: true,
-                    },
-                },
-                required: ["user_id"],
+                description: "User traits to update",
+                properties: {},
+                additionalProperties: true,
+            },
+            anonymous_id: {
+                type: "string",
+                description: "Anonymous identifier to link with user_id",
+            },
+            timestamp: {
+                type: "string",
+                description: "ISO 8601 timestamp (defaults to current time)",
+            },
+            context: {
+                type: "object",
+                description: "Additional context information",
+                                        properties: {},
+                additionalProperties: true,
+            },
+            integrations: {
+                type: "object",
+                description: "Integration-specific settings",
+                                        properties: {},
+                additionalProperties: true,
             },
         },
+        required: ["user_id"],
+    },
+},
   {
     name: "getUserByEmailOrPhone",
     description: "Find a user by their email address or their phone number.",

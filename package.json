@@ -31,7 +31,8 @@
     "twilio": "^5.4.3",
     "twilio-sync": "^3.3.5",
     "uuid": "^11.0.5",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^3.25.67"
   },
   "devDependencies": {
     "@types/deep-diff": "^1.0.5",

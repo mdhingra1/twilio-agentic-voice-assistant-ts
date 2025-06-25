@@ -1,5 +1,10 @@
 import Twilio from "twilio";
 import { v4 as uuidV4 } from "uuid";
+import { SegmentProfileClient } from "./profile-client";
+import {
+  GetProfileTraitsSchema,
+  GetProfileEventsSchema,
+} from "./profile-schemas";
 import { db } from "../../../integration-server/mock-database.js";
 import {
   DEFAULT_TWILIO_NUMBER,
@@ -9,10 +14,83 @@ import {
 } from "../../../shared/env.js";
 import type { AuxiliaryMessage } from "../../../shared/session/context.js";
 import type { ToolExecutor } from "../../types.js";
+import {he} from "zod/dist/types/v4/locales";
 
 const twilio = Twilio(TWILIO_API_KEY, TWILIO_API_SECRET, {
   accountSid: TWILIO_ACCOUNT_SID,
 });
+const headers = {"x-segment-profile-api-token": "",
+  "x-segment-space-id" :"",
+  "x-segment-workspace-id" : "",
+  "x-segment-tracking-write-key" : "",
+};
+const config = {
+  profileApiToken: headers["x-segment-profile-api-token"],
+      trackingWriteKey: headers["x-segment-tracking-write-key"],
+    workspaceId: headers["x-segment-workspace-id"],
+    spaceId:headers["x-segment-space-id"],
+    profileApiBaseUrl: "https://profiles.segment.com"
+}
+const profileClient = new SegmentProfileClient(config);
+interface GetProfileTraits {
+  external_id: string;
+  space_id: string;
+}
+
+export const getProfileTraits: ToolExecutor<
+    GetProfileTraits
+    > = async (args, deps) => {
+  const validatedParams = GetProfileTraitsSchema.parse(args);
+  const profileClient = new SegmentProfileClient(config)
+  const traitsResponse = await profileClient.getProfileTraits(
+      validatedParams.external_id,
+      validatedParams.space_id
+  );
+
+  return {
+    success: true,
+    external_id: validatedParams.external_id,
+    traits: traitsResponse.traits,
+    cursor: traitsResponse.cursor,
+  };
+
+}
+
+interface GetProfileEvents {
+  userId: string;
+  spaceId: string;
+}
+
+export const getProfileEvents: ToolExecutor<
+    GetProfileEvents
+    > = async (args, deps) => {
+  const validatedParams = GetProfileEventsSchema.parse(args);
+  const profileClient = new SegmentProfileClient(config);
+  const eventsResponse = await profileClient.getProfileEvents(
+      validatedParams.external_id,
+      {
+        limit: validatedParams.limit,
+        cursor: validatedParams.cursor,
+        spaceId: validatedParams.space_id,
+        exclude:
+            "AI Conversation Started,AI Message Sent,AI Response Received,AI Query Executed,AI Feedback Given",
+      }
+  );
+
+  if (!eventsResponse.data || !Array.isArray(eventsResponse.data)) {
+    throw new Error("No events found for the given profile.");
+  }
+
+  return {
+    success: true,
+    external_id: validatedParams.external_id,
+    events: eventsResponse.data,
+    cursor: eventsResponse.cursor,
+    total_events: eventsResponse.data.length,
+  };
+
+}
+
 
 /****************************************************
  Get User By Email or Phone
