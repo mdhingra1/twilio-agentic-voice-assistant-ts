@@ -9,6 +9,8 @@ import { getMakeLogger } from "../../lib/logger.js";
 import { interpolateTemplate } from "../../lib/template.js";
 import { OPENAI_API_KEY } from "../../shared/env.js";
 import type { CallSummary } from "./types.js";
+import { VectorStoreService } from "../../services/vector-store/index.js";
+import { ContextRetriever } from "../../services/vector-store/context-retriever.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url)); // this directory
 
@@ -27,12 +29,15 @@ interface SummarizationServiceConfig {
 
 export class SummarizationService {
   log: ReturnType<typeof getMakeLogger>;
+  private vectorStore: VectorStoreService;
+  
   constructor(
     private store: SessionStore,
     private agent: AgentResolver,
     private config: SummarizationServiceConfig,
   ) {
     this.log = getMakeLogger(store.callSid);
+    this.vectorStore = new VectorStoreService();
   }
 
   private timeout: NodeJS.Timeout | undefined;
@@ -108,8 +113,99 @@ export class SummarizationService {
       };
 
       this.store.setContext({ summary });
+
+      // Store summary in vector database
+      await this.storeSummaryInVectorDB(summary);
+
+      // Update context with topic-specific historical information
+      await this.updateTopicContext(summary);
     }
   };
+
+  private async storeSummaryInVectorDB(summary: CallSummary): Promise<void> {
+    try {
+      const conversationMetadata = {
+        callSid: this.store.callSid,
+        participantPhone: this.store.context?.call?.participantPhone || '',
+        callStartTime: this.store.context?.call?.startedAt || new Date().toISOString(),
+        callDirection: this.store.context?.call?.direction || 'inbound',
+        callStatus: this.store.context?.call?.status || 'in-progress',
+        topics: summary.topics || [],
+        userId: this.store.context?.user?.id,
+        userCity: this.store.context?.user?.city,
+        userState: this.store.context?.user?.state,
+        hasOrderHistory: !!(this.store.context?.user && Object.keys(this.store.context.user).length > 0)
+      };
+
+      const result = await this.vectorStore.updateSummary(
+        this.store.callSid,
+        summary,
+        conversationMetadata
+      );
+
+      if (result.success) {
+        this.log.debug("vector-summary-stored", 
+          `Summary stored in vector DB (${result.metrics?.processingTime}ms)`
+        );
+      } else {
+        this.log.warn("vector-summary-failed", 
+          `Failed to store summary in vector DB: ${result.error}`
+        );
+      }
+    } catch (error) {
+      this.log.error("vector-summary-error", 
+        `Error storing summary in vector DB: ${error}`
+      );
+    }
+  }
+
+  private async updateTopicContext(summary: CallSummary): Promise<void> {
+    try {
+      // Only update topic context if there are meaningful topics
+      if (!summary.topics || summary.topics.length === 0) {
+        return;
+      }
+
+      const contextRetriever = new ContextRetriever(this.vectorStore);
+      const participantPhone = this.store.context?.call?.participantPhone || '';
+      
+      if (!participantPhone) {
+        this.log.warn("topic-context", "No participant phone found for topic context update");
+        return;
+      }
+
+      // Get topic-specific context
+      const topicContext = await contextRetriever.getTopicSpecificContext(
+        participantPhone, 
+        summary.topics
+      );
+
+      // Update the historical context in the store if we found relevant information
+      if (topicContext.relevantConversations.length > 0) {
+        const currentHistoricalContext = this.store.context?.historicalContext;
+        const formattedTopicContext = contextRetriever.formatContextForAgent(topicContext);
+        
+        // Enhance the existing historical context with topic-specific information
+        const enhancedContext = {
+          ...currentHistoricalContext,
+          topicSpecificContext: formattedTopicContext,
+          relatedTopics: topicContext.relatedTopics
+        };
+
+        this.store.setContext({ 
+          historicalContext: enhancedContext
+        });
+
+        this.log.debug("topic-context-updated", 
+          `Updated context with ${topicContext.relevantConversations.length} topic-relevant conversations for topics: ${summary.topics.join(', ')}`
+        );
+      }
+    } catch (error) {
+      this.log.error("topic-context-error", 
+        `Error updating topic context: ${error}`
+      );
+    }
+  }
 
   private getTranscript = () =>
     this.store.turns

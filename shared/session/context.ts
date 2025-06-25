@@ -3,6 +3,7 @@ import type { GovernanceState } from "../../modules/governance/types.js";
 import type { AIQuestionState } from "../../modules/human-in-the-loop/types.js";
 import type { CallSummary } from "../../modules/summarization/types.js";
 import type { UserRecord } from "../db-entities.js";
+import type { UserHistoryContext } from "../../services/vector-store/types.js";
 
 export interface SessionContext {
   auxiliaryMessages: Record<string, AuxiliaryMessage>; // messages sent to the user outside of the conversation
@@ -14,6 +15,15 @@ export interface SessionContext {
   questions: AIQuestionState;
   summary: CallSummary;
   user: UserRecord;
+  historicalContext?: {
+    userHistory: UserHistoryContext;
+    hasHistory: boolean;
+    lastCallDate?: string;
+    commonTopics: string[];
+    formattedContext: string;
+    topicSpecificContext?: string;
+    relatedTopics?: string[];
+  };
 }
 
 // this is also defined in the UI store

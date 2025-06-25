@@ -10,6 +10,8 @@ import {
 } from "../modules/flex-transfer-to-agent/index.js";
 import { GovernanceService } from "../modules/governance/index.js";
 import { SummarizationService } from "../modules/summarization/index.js";
+import { VectorStoreService } from "../services/vector-store/index.js";
+import { ContextRetriever } from "../services/vector-store/context-retriever.js";
 import { DEFAULT_TWILIO_NUMBER, HOSTNAME } from "../shared/env.js";
 import type { CallDetails, SessionContext } from "../shared/session/context.js";
 import { AgentResolver } from "./agent-resolver/index.js";
@@ -47,11 +49,22 @@ router.post("/incoming-call", async (req, res) => {
     const agent = await getAgentConfig();
     await warmUpSyncSession(call.callSid); // ensure the sync session is setup before connecting to Conversation Relay
 
+    // Get historical context for greeting generation only
+    const historicalContext = await getHistoricalContext(
+      call.participantPhone,
+      log
+    );
+
     const context: Partial<SessionContext> = {
       call,
       contactCenter: { waitTime: 5 + Math.floor(Math.random() * 5) },
     };
-    const welcomeGreeting = agent.getGreeting({ ...agent.context, ...context });
+
+    const welcomeGreeting = agent.getGreeting({
+      ...agent.context,
+      ...context,
+      historicalContext,
+    });
 
     const twiml = makeConversationRelayTwiML({
       ...agent.relayConfig,
@@ -59,7 +72,7 @@ router.post("/incoming-call", async (req, res) => {
       context,
       dtmfDetection: true,
       interruptByDtmf: true,
-      parameters: { agent, welcomeGreeting },
+      parameters: { welcomeGreeting }, // Only pass greeting - agent config loaded fresh in WebSocket
       welcomeGreeting,
     });
     log.info("/incoming-call", "twiml\n", prettyXML(twiml));
@@ -79,7 +92,7 @@ router.post("/call-status", async (req, res) => {
 
   log.info(
     "/call-status",
-    `call status updated to ${callStatus}, CallSid ${callSid}`,
+    `call status updated to ${callStatus}, CallSid ${callSid}`
   );
 
   try {
@@ -87,7 +100,7 @@ router.post("/call-status", async (req, res) => {
   } catch (error) {
     log.warn(
       "/call-status",
-      `unable to update call status in Sync, CallSid ${callSid}`,
+      `unable to update call status in Sync, CallSid ${callSid}`
     );
   }
 
@@ -139,10 +152,17 @@ router.post("/outbound/answer", async (req, res) => {
     const agent = await getAgentConfig();
     await warmUpSyncSession(call.callSid); // ensure the sync session is setup before connecting to Conversation Relay
 
+    // Get historical context for this user
+    const historicalContext = await getHistoricalContext(
+      call.participantPhone,
+      log
+    );
+
     const context: Partial<SessionContext> = {
       auxiliaryMessages: {},
       call,
       contactCenter: { waitTime: 5 + Math.floor(Math.random() * 5) },
+      historicalContext,
     };
     const welcomeGreeting = agent.getGreeting(context);
 
@@ -166,7 +186,7 @@ router.post("/outbound/answer", async (req, res) => {
 export const CONVERSATION_RELAY_WS_ROUTE = "/convo-relay/:callSid";
 export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
   ws,
-  req,
+  req
 ) => {
   const { callSid } = req.params;
   const log = getMakeLogger(callSid);
@@ -199,15 +219,23 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
     // context is fetched in the API routes that generate the the ConversationRelay TwiML and then included as a <Parameter/>. This ensures that any data fetching, such as the user's profile, is completed before the websocket is initialized and the AI agent is engaged.
     // https://www.twilio.com/docs/voice/twiml/connect/conversationrelay#parameter-element
     const context = "context" in params ? JSON.parse(params.context) : {};
+
+    // Always load fresh agent config and historical context in WebSocket (avoids parameter size limits)
+    log.debug("setup", "Loading agent config and historical context");
+    const [agentConfig, historicalContext] = await Promise.all([
+      getAgentConfig(),
+      getHistoricalContext(context.call?.participantPhone, log),
+    ]);
+
     store.setContext({
       ...context,
-      ...(await getAgentConfig()).context,
+      ...agentConfig.context,
       call: { ...context.call, conversationRelaySessionId: ev.sessionId },
+      historicalContext,
     });
 
-    // set the agent configuration
-    const config = JSON.parse(params.agent) as Partial<AgentResolverConfig>;
-    agent.configure(config);
+    // Configure agent with full configuration
+    agent.configure(agentConfig);
 
     const greeting = JSON.parse(params.welcomeGreeting);
     if (greeting) {
@@ -236,7 +264,7 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
     log.info(
       `relay.interrupt`,
       `human interrupted bot`,
-      ev.utteranceUntilInterrupt,
+      ev.utteranceUntilInterrupt
     );
 
     consciousLoop.abort();
@@ -264,7 +292,7 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
     log.info("llm", `dtmf (bot): ${digits}`);
   });
 
-  ws.on("close", () => {
+  ws.on("close", async () => {
     governanceBot.stop();
     summaryBot.stop();
 
@@ -274,8 +302,11 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
       "\n/** session turns **/\n",
       JSON.stringify(store.turns.list(), null, 2),
       "\n/** session context **/\n",
-      JSON.stringify(store.context, null, 2),
+      JSON.stringify(store.context, null, 2)
     );
+
+    // Store transcript in vector database
+    await storeTranscriptInVectorDB(store, log);
   });
 };
 
@@ -304,7 +335,7 @@ router.post("/wrapup-call", async (req, res) => {
       `/wrapup-call`,
       "Unable to parse handoffData in wrapup webhook. ",
       "Request Body: ",
-      JSON.stringify(req.body),
+      JSON.stringify(req.body)
     );
     res.status(500).send({ status: "failed", error });
     return;
@@ -320,7 +351,7 @@ router.post("/wrapup-call", async (req, res) => {
       case "error":
         log.info(
           "/wrapup-call",
-          `wrapping up call that failed due to error, callSid: ${callSid}, message: ${handoffData.message}`,
+          `wrapping up call that failed due to error, callSid: ${callSid}, message: ${handoffData.message}`
         );
 
         await endCall(callSid);
@@ -331,7 +362,7 @@ router.post("/wrapup-call", async (req, res) => {
         log.warn(
           "/wrapup-call",
           `unknown handoff reasonCode, callSid: ${callSid}`,
-          JSON.stringify(handoffData),
+          JSON.stringify(handoffData)
         );
         await endCall(callSid);
         res.status(200).send("complete");
@@ -341,5 +372,118 @@ router.post("/wrapup-call", async (req, res) => {
     res.status(500).send(error);
   }
 });
+
+/****************************************************
+ Vector Store Integration - Context Retrieval (For Start of  Conversation)
+****************************************************/
+async function getHistoricalContext(
+  participantPhone: string,
+  log: ReturnType<typeof getMakeLogger>
+) {
+  try {
+    const vectorStore = new VectorStoreService();
+    const contextRetriever = new ContextRetriever(vectorStore);
+
+    const userHistory = await contextRetriever.getConversationStartContext(
+      participantPhone
+    );
+    const formattedContext =
+      contextRetriever.formatContextForAgent(userHistory);
+
+    log.debug(
+      "historical-context",
+      `Retrieved historical context for ${participantPhone}: ${userHistory.totalConversations} conversations`
+    );
+
+    return {
+      userHistory,
+      hasHistory: userHistory.totalConversations > 0,
+      lastCallDate: userHistory.lastCallDate,
+      commonTopics: userHistory.commonTopics,
+      formattedContext,
+    };
+  } catch (error) {
+    log.warn(
+      "historical-context-error",
+      `Failed to retrieve historical context for ${participantPhone}: ${error}`
+    );
+
+    // Return empty context on error to ensure calls still work
+    return {
+      userHistory: {
+        recentSummaries: [],
+        totalConversations: 0,
+        commonTopics: [],
+      },
+      hasHistory: false,
+      commonTopics: [],
+      formattedContext: "No previous conversation history available.",
+    };
+  }
+}
+
+/****************************************************
+ Vector Store Integration - Transcript Storage
+****************************************************/
+async function storeTranscriptInVectorDB(
+  store: SessionStore,
+  log: ReturnType<typeof getMakeLogger>
+): Promise<void> {
+  try {
+    const vectorStore = new VectorStoreService();
+    const turns = store.turns.list();
+
+    // Skip if no meaningful conversation occurred
+    if (turns.length === 0) {
+      log.debug(
+        "vector-transcript",
+        "No turns to store - skipping transcript storage"
+      );
+      return;
+    }
+
+    // Extract conversation metadata from store context
+    const context = store.context;
+    const conversationMetadata = {
+      callSid: store.callSid,
+      participantPhone: context?.call?.participantPhone || "",
+      callStartTime: context?.call?.startedAt || new Date().toISOString(),
+      callEndTime: new Date().toISOString(),
+      callDirection: context?.call?.direction || "inbound",
+      callStatus: "completed",
+      topics: context?.summary?.topics || [],
+      turnCount: turns.length,
+      userId: context?.user?.id,
+      userCity: context?.user?.city,
+      userState: context?.user?.state,
+      hasOrderHistory: !!(
+        context?.user && Object.keys(context.user).length > 0
+      ),
+    };
+
+    const result = await vectorStore.storeTranscript(
+      store.callSid,
+      turns,
+      conversationMetadata
+    );
+
+    if (result.success) {
+      log.info(
+        "vector-transcript-stored",
+        `Transcript stored: ${result.documentIds.length} chunks in ${result.metrics?.processingTime}ms`
+      );
+    } else {
+      log.warn(
+        "vector-transcript-failed",
+        `Failed to store transcript: ${result.error}`
+      );
+    }
+  } catch (error) {
+    log.error(
+      "vector-transcript-error",
+      `Error storing transcript in vector DB: ${error}`
+    );
+  }
+}
 
 export const completionServerRoutes = router;
