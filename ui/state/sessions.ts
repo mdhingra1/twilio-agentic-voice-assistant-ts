@@ -77,6 +77,11 @@ export function getSummaryState(state: RootState, callSid: string) {
   return session?.summary;
 }
 
+export function getHistoricalContext(state: RootState, callSid: string) {
+  const session = selectSessionById(state, callSid);
+  return session?.historicalContext;
+}
+
 export function getQuestionState(state: RootState, callSid: string) {
   const session = selectSessionById(state, callSid);
   return session?.questions;

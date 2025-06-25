@@ -1,11 +1,12 @@
 import { useAppSelector } from "@/state/hooks";
 import {
+  getHistoricalContext,
   getSummaryState,
   selectSessionById,
   selectSessionIds,
 } from "@/state/sessions";
 import { useInitializeCall, useIsCallLoaded } from "@/state/sync";
-import { Loader, Pagination, Paper, Table, Text, Title } from "@mantine/core";
+import { Badge, Loader, Pagination, Paper, Table, Text, Title } from "@mantine/core";
 import Link from "next/link";
 import { PropsWithChildren, useState } from "react";
 
@@ -44,6 +45,7 @@ function CallTable() {
             <Table.Th>Status</Table.Th>
             <Table.Th>Created At</Table.Th>
             <Table.Th style={{ maxWidth: "100px" }}>Topics</Table.Th>
+            <Table.Th>History</Table.Th>
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -77,6 +79,7 @@ function CallRow({ callSid }: { callSid: string }) {
   const direction = session?.call?.direction ?? "inbound";
 
   const summary = useAppSelector((state) => getSummaryState(state, callSid));
+  const historicalContext = useAppSelector((state) => getHistoricalContext(state, callSid));
 
   const callStatus = session?.call?.status;
 
@@ -123,6 +126,17 @@ function CallRow({ callSid }: { callSid: string }) {
               <Text size="sm">{topic}</Text>
             ))}
           </Text>
+        </CallLoader>
+      </Table.Td>
+      <Table.Td>
+        <CallLoader callSid={callSid}>
+          {historicalContext?.hasHistory ? (
+            <Badge size="sm" color="blue" variant="light">
+              {historicalContext.userHistory.totalConversations} past calls
+            </Badge>
+          ) : (
+            <Text size="xs" c="dimmed">New customer</Text>
+          )}
         </CallLoader>
       </Table.Td>
     </Table.Tr>

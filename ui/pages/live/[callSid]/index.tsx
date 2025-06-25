@@ -1,4 +1,5 @@
 import { GovernanceContainer } from "@/components/GovernanceContainer";
+import { HistoricalContextContainer } from "@/components/HistoricalContextContainer";
 import { TruncatedText } from "@/components/TruncateText";
 import { useAppSelector } from "@/state/hooks";
 import {
@@ -341,6 +342,8 @@ function Subconscious() {
       </Paper>
 
       <SummarySection />
+
+      <HistoricalContextContainer callSid={callSid} />
 
       <Paper className="paper">
         <GovernanceContainer callSid={callSid} />
