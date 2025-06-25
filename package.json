@@ -19,6 +19,7 @@
     "ui": "cd ui && npm run dev"
   },
   "dependencies": {
+    "@pinecone-database/pinecone": "^6.1.1",
     "@twilio/conversations": "^2.6.1",
     "deep-diff": "^1.0.2",
     "dotenv-flow": "^4.1.0",
