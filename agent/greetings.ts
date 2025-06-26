@@ -2,12 +2,7 @@ import { createRoundRobinPicker } from "../lib/round-robin-picker.js";
 import { interpolateTemplate } from "../lib/template.js";
 import type { SessionContext } from "../shared/session/context.js";
 import axios from 'axios';
-import {
-  SEGMENT_PROFILE_API_TOKEN,
-  SEGMENT_TRACKING_WRITE_KEY,
-  SEGMENT_WORKSPACE_ID,
-  SEGMENT_SPACE_ID,
-} from "../shared/env.js";
+
 
 
 
@@ -23,9 +18,6 @@ async function getOutputTextFromOpenAIResponse(data) {
       outputResp = output[i]
       break;
     }
-    if (output[i].type == "mcp_call") {
-        console.log(`mcp_call found, ${JSON.stringify(output[i])}`)
-    }
   };
 
   return outputResp.content[0].text;
@@ -35,17 +27,6 @@ async function getOpenAIResponse(messages) {
   const reqData = {
     model: "gpt-4o",
     input: messages,
-    tools: [{
-      "type": "mcp",
-      "server_label": "segment",
-      "server_url": "https://segment-mcp-demo-3678-dev.twil.io/mcp",
-      "require_approval": "never",
-      "headers": {"x-segment-profile-api-token": SEGMENT_PROFILE_API_TOKEN,
-        "x-segment-space-id" :SEGMENT_SPACE_ID,
-        "x-segment-workspace-id" : SEGMENT_WORKSPACE_ID,
-        "x-segment-tracking-write-key" : SEGMENT_TRACKING_WRITE_KEY,
-      }
-    }]
   }
 
 
@@ -78,13 +59,16 @@ async function aiResponse(messages) {
 
 export async function getGreeting(context: Partial<SessionContext>) {
   const template = `
-You are an e-commerce support AI assistant. Do not use special characters as your responses are read out. Use the provided segment tools.
-Start off the calls with a greeting (Hello followed by their name) and a potential reason the caller may be calling based on their recent activity.
-This requires a segment tool call to get_profile_events to determine recent activity and get_profile_traits to determine the name and other characteristics.
+You are an e-commerce support AI assistant. Do not use special characters as your responses are read out. 
+Start off the calls with a greeting (Hello followed by their name) and a potential reason the caller may be calling based on the traits and events from their user profile listed below.
+
 Ask about their recent event history, and if they have previous conversations, incorporate that data as well.
-The user id is {{user.user_id}}, the format should be user_id:(insert user id). 
 For example, if they had a recent Order Completed event, ask if they are calling about that item.
 If they have no profile data or past historical conversation, say "You've reached {{company.name}}. A live agent will be available in approximately {{contactCenter.waitTime}} minutes. Can you tell me why you're calling so I can pass it along to the agent?",
+
+## User Profile
+
+{{user}}
 
 # Historical Context
 

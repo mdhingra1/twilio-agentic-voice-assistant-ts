@@ -72,7 +72,14 @@ export interface ContactCenter {
   waitTime: number; // minutes
 }
 export interface User {
-  user_id: string; // minutes
+  user_id: string;
+  traits: Record<string, string>;
+  events: Event[];
+}
+export interface Event {
+  event: string
+  timestamp: string;
+  properties: object
 }
 
 export interface CompanyDetails {

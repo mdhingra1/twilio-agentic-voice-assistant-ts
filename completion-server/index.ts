@@ -33,6 +33,7 @@ import {
   startRecording,
   type TwilioCallWebhookPayload,
 } from "./twilio/voice.js";
+import {getProfile} from "../lib/profile.js";
 
 const router = Router();
 
@@ -54,11 +55,14 @@ router.post("/incoming-call", async (req, res) => {
       call.participantPhone,
       log
     );
+    const userID = "f9708bce"
+    const user = await getProfile(`user_id:${userID}`);
+    console.log(`User Profile: ${JSON.stringify(user)}`);
 
     const context: Partial<SessionContext> = {
       call,
       contactCenter: { waitTime: 5 + Math.floor(Math.random() * 5) },
-      user: {user_id: "f9708bce" }
+      user: user
     };
 
     const welcomeGreeting = await agent.getGreeting({
