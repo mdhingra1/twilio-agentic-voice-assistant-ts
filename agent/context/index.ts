@@ -2,3 +2,4 @@
 
 export { company } from "./company.js";
 export { procedures } from "./procedures.js";
+export {datagraph} from "./datagraph.js";

@@ -13,6 +13,33 @@ import type { ToolExecutor } from "../../types.js";
 const twilio = Twilio(TWILIO_API_KEY, TWILIO_API_SECRET, {
   accountSid: TWILIO_ACCOUNT_SID,
 });
+/****************************************************
+ Get Entity
+ ****************************************************/
+interface GetEntity {
+  entity?: string;
+  rowId?: string;
+}
+
+export const getEntity: ToolExecutor<
+    GetEntity
+    > = async (args, deps) => {
+  switch (args.entity) {
+    case "account":
+      return [{"ID": "act_74hfnjj", "CUSTOMER_ID": deps.store.context.user?.user_id, "STATUS": "open", "BALANCE": 1000, "CURRENCY": "USD", "ACCOUNT_TYPE": "credit_card", "CREATED_AT": "2023-01-01T00:00:00Z", "UPDATED_AT": "2023-01-02T00:00:00Z"}];
+    case "transaction":
+      return [{"ID": "txn_123", "ACCOUNT_ID": "act_74hfnjj", "AMOUNT": 100, "CURRENCY": "USD", "DESCRIPTION": "Furniture", "STATUS": "completed", "CREATED_AT": "2025-01-03T00:00:00Z"},
+              {"ID": "txn_456", "ACCOUNT_ID": "act_74hfnjj", "AMOUNT": 200, "CURRENCY": "USD", "DESCRIPTION": "Electronics", "STATUS": "completed", "CREATED_AT": "2025-05-04T00:00:00Z"},
+              {"ID": "txn_789", "ACCOUNT_ID": "act_74hfnjj", "AMOUNT": 300, "CURRENCY": "USD", "DESCRIPTION": "Groceries", "STATUS": "completed", "CREATED_AT": "2025-06-05T00:00:00Z"}];
+    case "application":
+      return
+[{"ID": "app_123", "CUSTOMER_ID": deps.store.context.user?.user_id, "STATUS": "approved", "CREATED_AT": "2023-01-01T00:00:00Z", "UPDATED_AT": "2023-01-02T00:00:00Z", "REASON": "Approved for credit limit increase"},
+  {"ID": "app_125", "CUSTOMER_ID": deps.store.context.user?.user_id, "STATUS": "open", "CREATED_AT": "2025-01-01T00:00:00Z", "UPDATED_AT": "2023-01-02T00:00:00Z", "REASON": "Application missing W2 tax document"}];
+
+  }
+  return "No entity found";
+
+};
 
 /****************************************************
  Get User By Email or Phone

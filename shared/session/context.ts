@@ -80,3 +80,9 @@ export interface CompanyDetails {
   description: string;
   email: string;
 }
+
+export interface Datagraph {
+  name: string;
+  // json string of datagraph definition
+  value: string;
+}

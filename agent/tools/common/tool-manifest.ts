@@ -2,6 +2,25 @@ import type { ToolDefinition } from "../../types.js";
 
 export const commonToolManifest: ToolDefinition[] = [
   {
+    name: "getEntity",
+    description: "Get all rows for a specific entity based on the datagraph such as Accounts or Transactions. Calls may need to be chained.",
+    type: "function",
+    parameters: {
+      type: "object",
+      properties: {
+        entity: {
+          type: "string",
+          description: "The name of the entity",
+        },
+        rowId: {
+          type: "string",
+          description: "The row to retrieve from the entity table, should be the value of the primary key",
+        },
+      },
+      required: ["entity", "rowId"],
+    },
+  },
+  {
     name: "getUserByEmailOrPhone",
     description: "Find a user by their email address or their phone number.",
     type: "function",
