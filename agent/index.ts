@@ -2,7 +2,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import * as context from "./context/index.js";
 import { fillerPhrases } from "./filler-phrases.js";
-import { getGreeting } from "./greetings.js";
+import { getGreeting } from "./greeting/greetings.js";
 import { llmConfig } from "./llm-config.js";
 import { relayConfig } from "./relay-config.js";
 import { toolManifest } from "./tools/index.js";

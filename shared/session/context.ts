@@ -14,7 +14,7 @@ export interface SessionContext {
   procedures: Record<string, Procedure>;
   questions: AIQuestionState;
   summary: CallSummary;
-  user: UserRecord;
+  user: User;
   historicalContext?: {
     userHistory: UserHistoryContext;
     hasHistory: boolean;
@@ -71,9 +71,25 @@ export interface CallDetails {
 export interface ContactCenter {
   waitTime: number; // minutes
 }
+export interface User {
+  user_id: string;
+  traits: Record<string, string>;
+  events: Event[];
+}
+export interface Event {
+  event: string
+  timestamp: string;
+  properties: object
+}
 
 export interface CompanyDetails {
   name: string;
   description: string;
   email: string;
+}
+
+export interface Datagraph {
+  name: string;
+  // json string of datagraph definition
+  value: string;
 }

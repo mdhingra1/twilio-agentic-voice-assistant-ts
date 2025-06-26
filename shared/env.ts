@@ -42,6 +42,15 @@ export const PINECONE_INDEX_NAME = process.env.PINECONE_INDEX_NAME as string;
 if (!PINECONE_API_KEY) missingRequired("PINECONE_API_KEY");
 if (!PINECONE_INDEX_NAME) missingRequired("PINECONE_INDEX_NAME");
 
+export const SEGMENT_PROFILE_API_TOKEN = process.env.SEGMENT_PROFILE_API_TOKEN as string;
+export const SEGMENT_TRACKING_WRITE_KEY = process.env.SEGMENT_TRACKING_WRITE_KEY as string;
+export const SEGMENT_WORKSPACE_ID = process.env.SEGMENT_WORKSPACE_ID as string;
+export const SEGMENT_SPACE_ID = process.env.SEGMENT_SPACE_ID as string;
+if (!SEGMENT_PROFILE_API_TOKEN) missingRequired("SEGMENT_PROFILE_API_TOKEN");
+if (!SEGMENT_TRACKING_WRITE_KEY) missingRequired("SEGMENT_TRACKING_WRITE_KEY");
+if (!SEGMENT_WORKSPACE_ID) missingRequired("SEGMENT_WORKSPACE_ID");
+if (!SEGMENT_SPACE_ID) missingRequired("SEGMENT_SPACE_ID");
+
 /****************************************************
  Optional Env Variables
 ****************************************************/

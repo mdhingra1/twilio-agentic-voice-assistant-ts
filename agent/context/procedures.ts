@@ -2,6 +2,27 @@ import type { Procedure } from "../types.js";
 
 export const procedures: Record<string, Procedure> = [
   {
+    id: "fetch_enity",
+    description:
+        "Use the provided datagraph and getEntity tool to fetch the information needed by the user",
+    steps: [
+      {
+        id: "learn_datagraph",
+        description:
+            "Learn the customers datagraph to understand the relationship between tables in their data warehouse.",
+        strictness: "required",
+      },
+      {
+        id: "get_entity_chain",
+        description: "use the getEntity tool to fetch the information needed by the user",
+        strictness: "required",
+        completionCriteria: "Data rows have been fetched",
+        instructions:
+            "Use getEntity tool, may require chaining across multiple entity/table relationships.",
+      },
+    ],
+  },
+  {
     id: "identify_user",
     description:
       "Verify the identity of a user through context or active identification",
