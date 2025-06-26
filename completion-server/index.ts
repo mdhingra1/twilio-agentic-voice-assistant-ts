@@ -36,6 +36,11 @@ import {
 import {getProfile} from "../lib/profile.js";
 
 const router = Router();
+const default_user = "f9708bce"
+// map of phone to user
+const phoneToUser: Record<string, string> = {
+  "+12092421066": "f9708bce", 
+};
 
 /****************************************************
  Phone Number Webhooks
@@ -55,7 +60,9 @@ router.post("/incoming-call", async (req, res) => {
       call.participantPhone,
       log
     );
-    const userID = "f9708bce"
+    
+    const userID = phoneToUser[call.participantPhone] || default_user;
+    
     const user = await getProfile(`user_id:${userID}`);
     console.log(`User Profile: ${JSON.stringify(user)}`);
 
