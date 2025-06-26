@@ -264,11 +264,15 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
     summaryBot.start();
   });
 
-  relay.onPrompt((ev) => {
+  relay.onPrompt(async (ev) => {
     if (!ev.last) return; // do nothing on partial speech
     log.info(`relay.prompt`, `"${ev.voicePrompt}"`);
 
     store.turns.addHumanText({ content: ev.voicePrompt, origin: "stt" });
+
+    // Real-time semantic context enrichment
+    await enrichSemanticContext(store, ev.voicePrompt, log);
+
     consciousLoop.run();
   });
 
@@ -384,6 +388,64 @@ router.post("/wrapup-call", async (req, res) => {
     res.status(500).send(error);
   }
 });
+
+/****************************************************
+ Vector Store Integration - Semantic Context Enrichment
+****************************************************/
+async function enrichSemanticContext(
+  store: SessionStore,
+  userQuery: string,
+  log: ReturnType<typeof getMakeLogger>
+): Promise<void> {
+  try {
+    const participantPhone = store.context?.call?.participantPhone;
+    if (!participantPhone) return;
+
+    // Only enrich for meaningful queries (skip very short utterances)
+    if (userQuery.trim().split(" ").length < 3) return;
+
+    const vectorStore = new VectorStoreService();
+    const contextRetriever = new ContextRetriever(vectorStore);
+
+    const semanticContext = await contextRetriever.getSemanticContext(
+      participantPhone,
+      userQuery,
+      {
+        realTime: true,
+        maxLatency: 500,
+        confidenceThreshold: 0.4,
+      }
+    );
+
+    if (semanticContext.hasRelevantContext) {
+      const enrichedContext = {
+        semanticMatches: semanticContext.matches.map((match) => ({
+          id: match.id,
+          content: match.content,
+          score: match.score,
+          timestamp: match.metadata.callStartTime as string,
+        })),
+        lastQuery: userQuery,
+        confidence: semanticContext.confidence,
+        updatedAt: new Date(),
+      };
+
+      store.setContext({ dynamicSemanticContext: enrichedContext });
+
+      log.debug(
+        "semantic-enrichment",
+        `Enriched context with ${
+          semanticContext.matches.length
+        } matches (confidence: ${semanticContext.confidence.toFixed(2)})`
+      );
+    }
+  } catch (error) {
+    log.warn(
+      "semantic-enrichment-error",
+      `Failed to enrich semantic context: ${error}`
+    );
+  }
+}
 
 /****************************************************
  Vector Store Integration - Context Retrieval (For Start of  Conversation)

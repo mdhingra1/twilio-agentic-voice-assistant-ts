@@ -170,6 +170,70 @@ export class ContextRetriever {
   }
 
   /****************************************************
+   Semantic Context for Real-time Enrichment
+  ****************************************************/
+  async getSemanticContext(
+    participantPhone: string,
+    userQuery: string,
+    options: {
+      realTime?: boolean;
+      maxLatency?: number;
+      confidenceThreshold?: number;
+    } = {}
+  ): Promise<{
+    hasRelevantContext: boolean;
+    matches: ConversationMatch[];
+    confidence: number;
+  }> {
+    const { maxLatency = 500, confidenceThreshold = 0.4 } = options;
+    const startTime = Date.now();
+
+    try {
+      // Simple semantic search with higher relevance threshold
+      const result = await this.vectorStore.getRelevantContext(
+        participantPhone,
+        userQuery,
+        {
+          topK: 3, // Keep it focused
+          contentTypes: ["transcript"],
+          maxDays: 90, // Broader time window for semantic matches
+          minScore: 0.4, // Lower threshold to get more candidates
+        }
+      );
+
+      if (!result.success) {
+        return { hasRelevantContext: false, matches: [], confidence: 0 };
+      }
+
+      // Filter by confidence threshold
+      const relevantMatches = result.matches.filter(
+        (match) => match.score >= confidenceThreshold
+      );
+      const confidence =
+        relevantMatches.length > 0 ? relevantMatches[0].score : 0;
+
+      const processingTime = Date.now() - startTime;
+      this.log.debug(
+        "semantic-context",
+        `Retrieved ${relevantMatches.length} semantic matches for "${userQuery}" in ${processingTime}ms`
+      );
+
+      return {
+        hasRelevantContext: relevantMatches.length > 0,
+        matches: relevantMatches,
+        confidence,
+      };
+    } catch (error) {
+      const processingTime = Date.now() - startTime;
+      this.log.error(
+        "semantic-context-error",
+        `Error getting semantic context after ${processingTime}ms: ${error}`
+      );
+      return { hasRelevantContext: false, matches: [], confidence: 0 };
+    }
+  }
+
+  /****************************************************
    Detailed Context for Complex Issues -- TODO, actually use this
   ****************************************************/
   async getDetailedContext(

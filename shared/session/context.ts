@@ -24,6 +24,12 @@ export interface SessionContext {
     topicSpecificContext?: string;
     relatedTopics?: string[];
   };
+  dynamicSemanticContext?: {
+    semanticMatches: { id: string; content: string; score: number; timestamp: string }[];
+    lastQuery: string;
+    confidence: number;
+    updatedAt: Date;
+  };
 }
 
 // this is also defined in the UI store

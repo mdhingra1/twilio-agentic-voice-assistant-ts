@@ -92,6 +92,11 @@ export function getAuxMessageState(state: RootState, callSid: string) {
   return session?.auxiliaryMessages;
 }
 
+export function getDynamicSemanticContext(state: RootState, callSid: string) {
+  const session = selectSessionById(state, callSid);
+  return session?.dynamicSemanticContext;
+}
+
 /****************************************************
  Actions
 ****************************************************/
