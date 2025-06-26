@@ -13,7 +13,7 @@ import { SummarizationService } from "../modules/summarization/index.js";
 import { VectorStoreService } from "../services/vector-store/index.js";
 import { ContextRetriever } from "../services/vector-store/context-retriever.js";
 import { DEFAULT_TWILIO_NUMBER, HOSTNAME } from "../shared/env.js";
-import type { CallDetails, SessionContext } from "../shared/session/context.js";
+import type { CallDetails, SessionContext, User } from "../shared/session/context.js";
 import { AgentResolver } from "./agent-resolver/index.js";
 import type { AgentResolverConfig } from "./agent-resolver/types.js";
 import { OpenAIConsciousLoop } from "./conscious-loop/openai.js";
@@ -58,9 +58,10 @@ router.post("/incoming-call", async (req, res) => {
     const context: Partial<SessionContext> = {
       call,
       contactCenter: { waitTime: 5 + Math.floor(Math.random() * 5) },
+      user: {user_id: "f9708bce" }
     };
 
-    const welcomeGreeting = agent.getGreeting({
+    const welcomeGreeting = await agent.getGreeting({
       ...agent.context,
       ...context,
       historicalContext,
