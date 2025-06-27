@@ -1,57 +1,95 @@
-import axios from 'axios';
+import axios, { AxiosInstance, AxiosResponse } from "axios";
 import {
-    SEGMENT_PROFILE_API_TOKEN,
-    SEGMENT_SPACE_ID,
-} from "../shared/env.js";
+    ProfileTraitsResponse,
+    ProfileEventsResponse,
+} from "segment_types.js";
+
+const BASE_URL = "https://profiles.segment.com";
 
 
-const BASE_URL = `https://profiles.segment.com/v1/spaces/${SEGMENT_SPACE_ID}`;
+export class SegmentProfileClient {
+    private client: AxiosInstance;
+    private spaceId: string;
 
-async function getProfileTraits(externalId) {
-    const url = `${BASE_URL}/collections/users/profiles/${externalId}/traits?limit=20`;
-    const res = await axios.get(url, {
-        headers: {
-            Authorization: `Basic ${btoa(SEGMENT_PROFILE_API_TOKEN + ':')}`,
-            "Content-Type": "application/json",
-        }
-    });
-    let traits = res.data;
-    if (!traits) return 'No traits found.';
-    return Object.entries(traits.traits)
-}
-
-async function getProfileEvents(externalId, limit = 20) {
-    const url = `${BASE_URL}/collections/users/profiles/${externalId}/events?limit=20`;
-    const res = await axios.get(url, {
-        headers: {
-            Authorization: `Basic ${btoa(SEGMENT_PROFILE_API_TOKEN+ ':')}`,
-            "Content-Type": "application/json",
-        }
-
-    });
-    if (!res.data) {
-        return [];
-    }
-    let events = res.data.data;
-    if (!Array.isArray(events) || events.length === 0) return [];
-    return events.map(e => {
-        const props = e.properties ? JSON.stringify(e.properties) : '{}';
-        return {event: e.event, timestamp: e.timestamp, properties: props};
-    })
-
-}
-
-export async function getProfile(externalId) {
-    if (!externalId) {
-        throw new Error("External ID is required");
+    constructor(spaceId: string, token: string) {
+        this.spaceId = spaceId;
+        this.client = axios.create({
+            baseURL: BASE_URL,
+            headers: {
+                Authorization: `Basic ${btoa(token + ":")}`,
+                "Content-Type": "application/json",
+            },
+            timeout: 30000,
+        });
     }
 
-    const traits = await getProfileTraits(externalId);
-    const events = await getProfileEvents(externalId);
+    /**
+     * Get user traits by external ID (e.g., email:user@example.com)
+     */
+    async getProfileTraits(
+        externalId: string,
+        spaceId?: string
+    ): Promise<ProfileTraitsResponse> {
+        try {
+            const space = spaceId || this.spaceId;
+            const response: AxiosResponse<ProfileTraitsResponse> =
+                await this.client.get(
+                    `/v1/spaces/${space}/collections/users/profiles/${externalId}/traits`
+                );
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                throw new Error(`Profile not found for external ID: ${externalId}`);
+            }
+            throw new Error(`Failed to get profile traits: ${error.message}`);
+        }
+    }
 
-    return {
-        user_id: externalId,
-        traits: traits,
-        events: events,
-    };
+    /**
+     * Get user events by external ID (e.g., email:user@example.com)
+     */
+    async getProfileEvents(
+        externalId: string,
+        options: {
+            limit?: number;
+            cursor?: string;
+            spaceId?: string;
+            include?: string;
+            exclude?: string;
+        } = {}
+    ): Promise<ProfileEventsResponse> {
+        try {
+            const space = options.spaceId || this.spaceId;
+            const queryParams = new URLSearchParams();
+
+            if (options.limit) {
+                queryParams.append("limit", options.limit.toString());
+            }
+            if (options.cursor) {
+                queryParams.append("cursor", options.cursor);
+            }
+            if (options.include) {
+                queryParams.append("include", options.include);
+            }
+            if (options.exclude) {
+                queryParams.append("exclude", options.exclude);
+            }
+
+
+            const url = `/v1/spaces/${space}/collections/users/profiles/${externalId}/events`;
+            console.log(url)
+            const fullUrl = queryParams.toString()
+                ? `${url}?${queryParams.toString()}`
+                : url;
+
+            const response: AxiosResponse<ProfileEventsResponse> =
+                await this.client.get(fullUrl);
+            return response.data;
+        } catch (error: any) {
+            if (error.response?.status === 404) {
+                throw new Error(`Profile not found for external ID: ${externalId}`);
+            }
+            throw new Error(`Failed to get profile events: ${error.message}`);
+        }
+    }
 }

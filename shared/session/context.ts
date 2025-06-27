@@ -4,6 +4,7 @@ import type { AIQuestionState } from "../../modules/human-in-the-loop/types.js";
 import type { CallSummary } from "../../modules/summarization/types.js";
 import type { UserRecord } from "../db-entities.js";
 import type { UserHistoryContext } from "../../services/vector-store/types.js";
+import {ProfileEvent} from "../../lib/segment_types";
 
 export interface SessionContext {
   auxiliaryMessages: Record<string, AuxiliaryMessage>; // messages sent to the user outside of the conversation
@@ -80,12 +81,7 @@ export interface ContactCenter {
 export interface User {
   user_id: string;
   traits: Record<string, string>;
-  events: Event[];
-}
-export interface Event {
-  event: string
-  timestamp: string;
-  properties: object
+  events: ProfileEvent[];
 }
 
 export interface CompanyDetails {

@@ -12,7 +12,7 @@ import { GovernanceService } from "../modules/governance/index.js";
 import { SummarizationService } from "../modules/summarization/index.js";
 import { VectorStoreService } from "../services/vector-store/index.js";
 import { ContextRetriever } from "../services/vector-store/context-retriever.js";
-import { DEFAULT_TWILIO_NUMBER, HOSTNAME } from "../shared/env.js";
+import {DEFAULT_TWILIO_NUMBER, HOSTNAME, SEGMENT_PROFILE_API_TOKEN, SEGMENT_SPACE_ID} from "../shared/env.js";
 import type { CallDetails, SessionContext } from "../shared/session/context.js";
 import { AgentResolver } from "./agent-resolver/index.js";
 import { OpenAIConsciousLoop } from "./conscious-loop/openai.js";
@@ -32,7 +32,7 @@ import {
   startRecording,
   type TwilioCallWebhookPayload,
 } from "./twilio/voice.js";
-import { getProfile } from "../lib/profile.js";
+import {SegmentProfileClient} from "../lib/profile.js";
 
 const router = Router();
 const default_user = "f9708bce";
@@ -78,7 +78,29 @@ router.post("/incoming-call", async (req, res) => {
     // Get historical context for greeting generation only
     const historicalContext = await getHistoricalContext(userId, log);
 
-    const user = await getProfile(`user_id:${userId}`);
+    const user = {user_id:userId}
+    const profileClient = new SegmentProfileClient(SEGMENT_SPACE_ID, SEGMENT_PROFILE_API_TOKEN);
+    try {
+      const events = await profileClient.getProfileEvents(`user_id:${userId}`)
+      user.events = events.data
+    } catch (error) {
+      log.warn(
+        "incoming-call",
+        `Failed to fetch profile events for user ${userId}: ${error}`
+      );
+      user.events = []
+    }
+    try {
+      const data = await profileClient.getProfileTraits(`user_id:${userId}`)
+      user.traits = data.traits
+    } catch (error) {
+      log.warn(
+          "incoming-call",
+          `Failed to fetch profile events for user ${userId}: ${error}`
+      );
+      user.traits = []
+    }
+
     log.debug(
       "user-profile",
       `User Profile for ${userId}: ${JSON.stringify(user)}`

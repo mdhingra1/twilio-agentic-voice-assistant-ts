@@ -9,10 +9,108 @@ import {
 } from "../../../shared/env.js";
 import type { AuxiliaryMessage } from "../../../shared/session/context.js";
 import type { ToolExecutor } from "../../types.js";
+import {SegmentProfileClient} from "../../../lib/profile";
+import {
+  SEGMENT_PROFILE_API_TOKEN,
+  SEGMENT_SPACE_ID,
+  SEGMENT_TRACKING_WRITE_KEY,
+} from "../../../shared/env.js";
+import {GetProfileEventsSchema, GetProfileTraitsSchema, IdentifyEventSchema} from "../../../lib/segment_schemas";
+import {SegmentTrackingClient} from "../../../lib/tracking";
 
 const twilio = Twilio(TWILIO_API_KEY, TWILIO_API_SECRET, {
   accountSid: TWILIO_ACCOUNT_SID,
 });
+
+
+const profileClient = new SegmentProfileClient(SEGMENT_SPACE_ID, SEGMENT_PROFILE_API_TOKEN);
+const trackingClient = new SegmentTrackingClient(SEGMENT_TRACKING_WRITE_KEY)
+
+/****************************************************
+ Get Profile Traits
+ ****************************************************/
+interface GetProfileTraits {
+  external_id: string;
+  space_id: string;
+}
+
+export const getProfileTraits: ToolExecutor<
+    GetProfileTraits
+    > = async (args, deps) => {
+  const validatedParams = GetProfileTraitsSchema.parse(args);
+  const traitsResponse = await profileClient.getProfileTraits(
+      validatedParams.external_id,
+      validatedParams.space_id
+  );
+
+  return {
+    success: true,
+    external_id: validatedParams.external_id,
+    traits: traitsResponse.traits,
+    cursor: traitsResponse.cursor,
+  };
+
+}
+
+interface GetProfileEvents {
+  userId: string;
+  spaceId: string;
+}
+
+export const getProfileEvents: ToolExecutor<
+    GetProfileEvents
+    > = async (args, deps) => {
+  const validatedParams = GetProfileEventsSchema.parse(args);
+  const eventsResponse = await profileClient.getProfileEvents(
+      validatedParams.external_id,
+      {
+        limit: validatedParams.limit,
+        cursor: validatedParams.cursor,
+        spaceId: validatedParams.space_id,
+        exclude:
+            "AI Conversation Started,AI Message Sent,AI Response Received,AI Query Executed,AI Feedback Given,AI Call Operator Completed",
+      }
+  );
+
+  if (!eventsResponse.data || !Array.isArray(eventsResponse.data)) {
+    throw new Error("No events found for the given profile.");
+  }
+
+  return {
+    success: true,
+    external_id: validatedParams.external_id,
+    events: eventsResponse.data,
+    cursor: eventsResponse.cursor,
+    total_events: eventsResponse.data.length,
+  };
+
+}
+
+interface IdentifyUser {
+  user_id: string;
+  traits: object;
+}
+
+export const identify_user: ToolExecutor<
+    IdentifyUser
+    > = async (args, deps) => {
+  const validatedParams = IdentifyEventSchema.parse(args);
+  await trackingClient.identify({
+    userId: validatedParams.user_id,
+    anonymousId: validatedParams.anonymous_id,
+    traits: validatedParams.traits,
+    timestamp: validatedParams.timestamp,
+    context: validatedParams.context,
+    integrations: validatedParams.integrations,
+  });
+  return {
+    success: true,
+    message: `Successfully identified user: ${validatedParams.user_id}`,
+  };
+
+}
+
+
 /****************************************************
  Get Entity
  ****************************************************/
