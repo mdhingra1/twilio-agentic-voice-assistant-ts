@@ -18,7 +18,7 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 const instructionsTemplate = readFileSync(
   join(__dirname, "instructions.md"),
-  "utf-8",
+  "utf-8"
 );
 
 const topics_list = readFileSync(join(__dirname, "topics_list.csv"), "utf-8");
@@ -30,14 +30,35 @@ interface SummarizationServiceConfig {
 export class SummarizationService {
   log: ReturnType<typeof getMakeLogger>;
   private vectorStore: VectorStoreService;
-  
+
+  // Phone to user mapping - in production this would come from a database
+  private phoneToUser: Record<string, string> = {
+    "+12092421066": "f9708bce",
+    "+17783220513": "a67ef6a1",
+  };
+  private defaultUser = "f9708bce";
+
   constructor(
     private store: SessionStore,
     private agent: AgentResolver,
-    private config: SummarizationServiceConfig,
+    private config: SummarizationServiceConfig
   ) {
     this.log = getMakeLogger(store.callSid);
     this.vectorStore = new VectorStoreService();
+  }
+
+  private resolveUserIdFromPhone(participantPhone: string): string {
+    return this.phoneToUser[participantPhone] || this.defaultUser;
+  }
+
+  private extractCleanUserId(user: any): string {
+    if (!user?.user_id) return this.defaultUser;
+
+    const rawUserId = user.user_id;
+    if (typeof rawUserId === "string" && rawUserId.startsWith("user_id:")) {
+      return rawUserId.replace("user_id:", "");
+    }
+    return rawUserId;
   }
 
   private timeout: NodeJS.Timeout | undefined;
@@ -68,7 +89,7 @@ export class SummarizationService {
       this.log.error(
         "summary-bot",
         "Summary Bot competion request failed",
-        error,
+        error
       );
       return;
     }
@@ -97,7 +118,7 @@ export class SummarizationService {
         this.log.error(
           "summary-bot",
           "execute LLM responded with a non-JSON format",
-          content,
+          content
         );
         return;
       }
@@ -124,17 +145,30 @@ export class SummarizationService {
 
   private async storeSummaryInVectorDB(summary: CallSummary): Promise<void> {
     try {
+      // Extract clean userId from user context, fallback to resolving from phone if needed
+      const userId = this.store.context?.user
+        ? this.extractCleanUserId(this.store.context.user)
+        : this.resolveUserIdFromPhone(
+            this.store.context?.call?.participantPhone || ""
+          );
+
+      const participantPhone = this.store.context?.call?.participantPhone || "";
+
       const conversationMetadata = {
         callSid: this.store.callSid,
-        participantPhone: this.store.context?.call?.participantPhone || '',
-        callStartTime: this.store.context?.call?.startedAt || new Date().toISOString(),
-        callDirection: this.store.context?.call?.direction || 'inbound',
-        callStatus: this.store.context?.call?.status || 'in-progress',
+        userId,
+        participantPhone,
+        callStartTime:
+          this.store.context?.call?.startedAt || new Date().toISOString(),
+        callDirection: this.store.context?.call?.direction || "inbound",
+        callStatus: this.store.context?.call?.status || "in-progress",
         topics: summary.topics || [],
-        userId: this.store.context?.user?.id,
-        userCity: this.store.context?.user?.city,
-        userState: this.store.context?.user?.state,
-        hasOrderHistory: !!(this.store.context?.user && Object.keys(this.store.context.user).length > 0)
+        userCity: this.store.context?.user?.traits?.city,
+        userState: this.store.context?.user?.traits?.state,
+        hasOrderHistory: !!(
+          this.store.context?.user &&
+          Object.keys(this.store.context.user).length > 0
+        ),
       };
 
       const result = await this.vectorStore.updateSummary(
@@ -144,16 +178,19 @@ export class SummarizationService {
       );
 
       if (result.success) {
-        this.log.debug("vector-summary-stored", 
+        this.log.debug(
+          "vector-summary-stored",
           `Summary stored in vector DB (${result.metrics?.processingTime}ms)`
         );
       } else {
-        this.log.warn("vector-summary-failed", 
+        this.log.warn(
+          "vector-summary-failed",
           `Failed to store summary in vector DB: ${result.error}`
         );
       }
     } catch (error) {
-      this.log.error("vector-summary-error", 
+      this.log.error(
+        "vector-summary-error",
         `Error storing summary in vector DB: ${error}`
       );
     }
@@ -167,41 +204,64 @@ export class SummarizationService {
       }
 
       const contextRetriever = new ContextRetriever(this.vectorStore);
-      const participantPhone = this.store.context?.call?.participantPhone || '';
-      
+      const participantPhone = this.store.context?.call?.participantPhone || "";
+
       if (!participantPhone) {
-        this.log.warn("topic-context", "No participant phone found for topic context update");
+        this.log.warn(
+          "topic-context",
+          "No participant phone found for topic context update"
+        );
         return;
       }
 
+      // Extract clean userId from user context, fallback to resolving from phone if needed
+      const userId = this.store.context?.user
+        ? this.extractCleanUserId(this.store.context.user)
+        : this.resolveUserIdFromPhone(participantPhone);
+
       // Get topic-specific context
       const topicContext = await contextRetriever.getTopicSpecificContext(
-        participantPhone, 
+        userId,
         summary.topics
       );
 
       // Update the historical context in the store if we found relevant information
       if (topicContext.relevantConversations.length > 0) {
         const currentHistoricalContext = this.store.context?.historicalContext;
-        const formattedTopicContext = contextRetriever.formatContextForAgent(topicContext);
-        
+        const formattedTopicContext =
+          contextRetriever.formatContextForAgent(topicContext);
+
         // Enhance the existing historical context with topic-specific information
         const enhancedContext = {
-          ...currentHistoricalContext,
+          userHistory: currentHistoricalContext?.userHistory || {
+            recentSummaries: [],
+            totalConversations: 0,
+            commonTopics: [],
+          },
+          hasHistory: currentHistoricalContext?.hasHistory || false,
+          lastCallDate: currentHistoricalContext?.lastCallDate,
+          commonTopics: currentHistoricalContext?.commonTopics || [],
+          formattedContext: currentHistoricalContext?.formattedContext || "",
           topicSpecificContext: formattedTopicContext,
-          relatedTopics: topicContext.relatedTopics
+          relatedTopics: topicContext.relatedTopics,
         };
 
-        this.store.setContext({ 
-          historicalContext: enhancedContext
+        this.store.setContext({
+          historicalContext: enhancedContext,
         });
 
-        this.log.debug("topic-context-updated", 
-          `Updated context with ${topicContext.relevantConversations.length} topic-relevant conversations for topics: ${summary.topics.join(', ')}`
+        this.log.debug(
+          "topic-context-updated",
+          `Updated context with ${
+            topicContext.relevantConversations.length
+          } topic-relevant conversations for topics: ${summary.topics.join(
+            ", "
+          )}`
         );
       }
     } catch (error) {
-      this.log.error("topic-context-error", 
+      this.log.error(
+        "topic-context-error",
         `Error updating topic context: ${error}`
       );
     }

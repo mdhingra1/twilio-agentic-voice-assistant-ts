@@ -18,8 +18,8 @@ export interface VectorStoreConfig {
 export interface VectorMetadata {
   // Core identifiers
   callSid: string;
-  participantPhone: string; // E164 format
-  userId?: string; // if available from user database
+  userId: string; // Primary user identifier
+  participantPhone: string; // E164 format - kept for backward compatibility
 
   // Temporal data
   callStartTime: string | number; // ISO 8601 string or Unix timestamp
@@ -124,7 +124,8 @@ export type ConversationContext =
 ****************************************************/
 export interface ConversationMetadata {
   callSid: string;
-  participantPhone: string;
+  userId: string; // Primary user identifier
+  participantPhone: string; // Kept for backward compatibility
   callStartTime: string;
   callEndTime?: string;
   callDirection: "inbound" | "outbound";
@@ -132,7 +133,6 @@ export interface ConversationMetadata {
   topics?: string[];
   turnCount?: number;
   durationSeconds?: number;
-  userId?: string;
   userCity?: string;
   userState?: string;
   hasOrderHistory?: boolean;

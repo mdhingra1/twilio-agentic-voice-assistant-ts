@@ -337,7 +337,7 @@ export class VectorStoreService {
    Context Retrieval
   ****************************************************/
   async getRelevantContext(
-    participantPhone: string,
+    userId: string,
     currentQuery?: string,
     options: ContextRetrievalOptions = {}
   ): Promise<RetrievalResult> {
@@ -346,7 +346,7 @@ export class VectorStoreService {
       includeMetadata = true,
       maxDays = 30,
       contentTypes = ["summary", "transcript"],
-      minScore = 0.3,
+      minScore = 0.2,
     } = options;
 
     const startTime = Date.now();
@@ -354,7 +354,7 @@ export class VectorStoreService {
     try {
       // Create base filter for user
       const baseFilter: any = {
-        participantPhone: { $eq: participantPhone },
+        userId: { $eq: userId },
       };
 
       // Add time filter
@@ -381,7 +381,7 @@ export class VectorStoreService {
       );
       this.log.debug(
         "query-params",
-        `topK: ${topK}, minScore: ${minScore}, participantPhone: ${participantPhone}`
+        `topK: ${topK}, minScore: ${minScore}, userId: ${userId}`
       );
 
       let queryVector: number[];
@@ -441,7 +441,7 @@ export class VectorStoreService {
       const queryTime = Date.now() - startTime;
       this.log.debug(
         "context-retrieved",
-        `Retrieved ${matches.length} matches for ${participantPhone} in ${queryTime}ms`
+        `Retrieved ${matches.length} matches for userId ${userId} in ${queryTime}ms`
       );
 
       return {
@@ -460,7 +460,7 @@ export class VectorStoreService {
 
       this.log.error(
         "context-retrieval-error",
-        `Failed to retrieve context for ${participantPhone} after ${queryTime}ms: ${errorMessage}`
+        `Failed to retrieve context for userId ${userId} after ${queryTime}ms: ${errorMessage}`
       );
 
       return {

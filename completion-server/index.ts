@@ -13,9 +13,8 @@ import { SummarizationService } from "../modules/summarization/index.js";
 import { VectorStoreService } from "../services/vector-store/index.js";
 import { ContextRetriever } from "../services/vector-store/context-retriever.js";
 import { DEFAULT_TWILIO_NUMBER, HOSTNAME } from "../shared/env.js";
-import type { CallDetails, SessionContext, User } from "../shared/session/context.js";
+import type { CallDetails, SessionContext } from "../shared/session/context.js";
 import { AgentResolver } from "./agent-resolver/index.js";
-import type { AgentResolverConfig } from "./agent-resolver/types.js";
 import { OpenAIConsciousLoop } from "./conscious-loop/openai.js";
 import { makeCallDetail } from "./helpers.js";
 import { SessionStore } from "./session-store/index.js";
@@ -33,14 +32,31 @@ import {
   startRecording,
   type TwilioCallWebhookPayload,
 } from "./twilio/voice.js";
-import {getProfile} from "../lib/profile.js";
+import { getProfile } from "../lib/profile.js";
 
 const router = Router();
-const default_user = "f9708bce"
+const default_user = "f9708bce";
 // map of phone to user
 const phoneToUser: Record<string, string> = {
-  "+12092421066": "f9708bce", 
+  "+12092421066": "f9708bce",
+  "+17783220513": "a67ef6a1",
 };
+
+// Helper function to resolve userId from participantPhone
+function resolveUserId(participantPhone: string): string {
+  return phoneToUser[participantPhone] || default_user;
+}
+
+// Helper function to extract clean userId from user.user_id
+function extractCleanUserId(user: any): string {
+  if (!user?.user_id) return default_user;
+
+  const rawUserId = user.user_id;
+  if (typeof rawUserId === "string" && rawUserId.startsWith("user_id:")) {
+    return rawUserId.replace("user_id:", "");
+  }
+  return rawUserId;
+}
 
 /****************************************************
  Phone Number Webhooks
@@ -55,21 +71,25 @@ router.post("/incoming-call", async (req, res) => {
     const agent = await getAgentConfig();
     await warmUpSyncSession(call.callSid); // ensure the sync session is setup before connecting to Conversation Relay
 
+    const userId = resolveUserId(call.participantPhone);
+
+    log.debug("about to get user history", `${userId}`);
+
     // Get historical context for greeting generation only
-    const historicalContext = await getHistoricalContext(
-      call.participantPhone,
-      log
+    const historicalContext = await getHistoricalContext(userId, log);
+
+    const user = await getProfile(`user_id:${userId}`);
+    log.debug(
+      "user-profile",
+      `User Profile for ${userId}: ${JSON.stringify(user)}`
     );
-    
-    const userID = phoneToUser[call.participantPhone] || default_user;
-    
-    const user = await getProfile(`user_id:${userID}`);
-    console.log(`User Profile: ${JSON.stringify(user)}`);
+
+    // Ensure we use the same userId for both user profiles and vector store operations
 
     const context: Partial<SessionContext> = {
       call,
       contactCenter: { waitTime: 5 + Math.floor(Math.random() * 5) },
-      user: user
+      user: user,
     };
 
     const welcomeGreeting = await agent.getGreeting({
@@ -164,10 +184,14 @@ router.post("/outbound/answer", async (req, res) => {
     const agent = await getAgentConfig();
     await warmUpSyncSession(call.callSid); // ensure the sync session is setup before connecting to Conversation Relay
 
+    const userId = resolveUserId(call.participantPhone);
+
     // Get historical context for this user
-    const historicalContext = await getHistoricalContext(
-      call.participantPhone,
-      log
+    const historicalContext = await getHistoricalContext(userId, log);
+    const user = await getProfile(`user_id:${userId}`);
+    log.debug(
+      "user-profile",
+      `User Profile for ${userId}: ${JSON.stringify(user)}`
     );
 
     const context: Partial<SessionContext> = {
@@ -175,8 +199,9 @@ router.post("/outbound/answer", async (req, res) => {
       call,
       contactCenter: { waitTime: 5 + Math.floor(Math.random() * 5) },
       historicalContext,
+      user: user,
     };
-    const welcomeGreeting = agent.getGreeting(context);
+    const welcomeGreeting = await agent.getGreeting(context);
 
     const twiml = makeConversationRelayTwiML({
       ...agent.relayConfig,
@@ -234,9 +259,15 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
 
     // Always load fresh agent config and historical context in WebSocket (avoids parameter size limits)
     log.debug("setup", "Loading agent config and historical context");
+
+    // Extract clean userId from user context, fallback to resolving from phone if needed
+    const userId = context.user
+      ? extractCleanUserId(context.user)
+      : resolveUserId(context.call?.participantPhone || "");
+
     const [agentConfig, historicalContext] = await Promise.all([
       getAgentConfig(),
-      getHistoricalContext(context.call?.participantPhone, log),
+      getHistoricalContext(userId, log),
     ]);
 
     store.setContext({
@@ -398,8 +429,12 @@ async function enrichSemanticContext(
   log: ReturnType<typeof getMakeLogger>
 ): Promise<void> {
   try {
-    const participantPhone = store.context?.call?.participantPhone;
-    if (!participantPhone) return;
+    // Extract clean userId from user context, fallback to resolving from phone if needed
+    const userId = store.context?.user
+      ? extractCleanUserId(store.context.user)
+      : resolveUserId(store.context?.call?.participantPhone || "");
+
+    if (!userId) return;
 
     // Only enrich for meaningful queries (skip very short utterances)
     if (userQuery.trim().split(" ").length < 3) return;
@@ -408,12 +443,12 @@ async function enrichSemanticContext(
     const contextRetriever = new ContextRetriever(vectorStore);
 
     const semanticContext = await contextRetriever.getSemanticContext(
-      participantPhone,
+      userId,
       userQuery,
       {
         realTime: true,
         maxLatency: 500,
-        confidenceThreshold: 0.4,
+        confidenceThreshold: 0.3,
       }
     );
 
@@ -434,7 +469,7 @@ async function enrichSemanticContext(
 
       log.debug(
         "semantic-enrichment",
-        `Enriched context with ${
+        `Enriched context for userId ${userId} with ${
           semanticContext.matches.length
         } matches (confidence: ${semanticContext.confidence.toFixed(2)})`
       );
@@ -451,7 +486,7 @@ async function enrichSemanticContext(
  Vector Store Integration - Context Retrieval (For Start of  Conversation)
 ****************************************************/
 async function getHistoricalContext(
-  participantPhone: string,
+  userId: string,
   log: ReturnType<typeof getMakeLogger>
 ) {
   try {
@@ -459,14 +494,14 @@ async function getHistoricalContext(
     const contextRetriever = new ContextRetriever(vectorStore);
 
     const userHistory = await contextRetriever.getConversationStartContext(
-      participantPhone
+      userId
     );
     const formattedContext =
       contextRetriever.formatContextForAgent(userHistory);
 
     log.debug(
       "historical-context",
-      `Retrieved historical context for ${participantPhone}: ${userHistory.totalConversations} conversations`
+      `Retrieved historical context for userId ${userId}: ${userHistory.totalConversations} conversations`
     );
 
     return {
@@ -479,7 +514,7 @@ async function getHistoricalContext(
   } catch (error) {
     log.warn(
       "historical-context-error",
-      `Failed to retrieve historical context for ${participantPhone}: ${error}`
+      `Failed to retrieve historical context for userId ${userId}: ${error}`
     );
 
     // Return empty context on error to ensure calls still work
@@ -518,18 +553,27 @@ async function storeTranscriptInVectorDB(
 
     // Extract conversation metadata from store context
     const context = store.context;
+    const participantPhone = context?.call?.participantPhone || "";
+
+    // Extract clean userId from user context, fallback to resolving from phone if needed
+    const userId = context?.user
+      ? extractCleanUserId(context.user)
+      : participantPhone
+      ? resolveUserId(participantPhone)
+      : default_user;
+
     const conversationMetadata = {
       callSid: store.callSid,
-      participantPhone: context?.call?.participantPhone || "",
+      userId,
+      participantPhone,
       callStartTime: context?.call?.startedAt || new Date().toISOString(),
       callEndTime: new Date().toISOString(),
       callDirection: context?.call?.direction || "inbound",
       callStatus: "completed",
       topics: context?.summary?.topics || [],
       turnCount: turns.length,
-      userId: context?.user?.id,
-      userCity: context?.user?.city,
-      userState: context?.user?.state,
+      userCity: context?.user?.traits?.city,
+      userState: context?.user?.traits?.state,
       hasOrderHistory: !!(
         context?.user && Object.keys(context.user).length > 0
       ),

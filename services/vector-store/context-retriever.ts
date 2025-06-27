@@ -20,20 +20,20 @@ export class ContextRetriever {
    Conversation Start Context
   ****************************************************/
   async getConversationStartContext(
-    participantPhone: string
+    userId: string
   ): Promise<UserHistoryContext> {
     const startTime = Date.now();
 
     try {
       // Get recent summaries for quick context
       const result = await this.vectorStore.getRelevantContext(
-        participantPhone,
+        userId,
         "Recent customer interactions and conversation history",
         {
           topK: 5,
           contentTypes: ["summary"],
           maxDays: 30,
-          minScore: 0.3, // Lower threshold since we are not really looking for specific topics here
+          minScore: 0.1, // Lower threshold since we are not really looking for specific topics here
         }
       );
 
@@ -70,7 +70,7 @@ export class ContextRetriever {
       const processingTime = Date.now() - startTime;
       this.log.debug(
         "conversation-start-context",
-        `Retrieved context for ${participantPhone} with ${result.matches.length} summaries in ${processingTime}ms`
+        `Retrieved context for userId ${userId} with ${result.matches.length} summaries in ${processingTime}ms`
       );
 
       return {
@@ -93,7 +93,7 @@ export class ContextRetriever {
    Topic-Specific Context
   ****************************************************/
   async getTopicSpecificContext(
-    participantPhone: string,
+    userId: string,
     topics: string[]
   ): Promise<TopicContext> {
     const startTime = Date.now();
@@ -112,7 +112,7 @@ export class ContextRetriever {
 
       // Get both summaries and relevant transcript segments
       const result = await this.vectorStore.getRelevantContext(
-        participantPhone,
+        userId,
         topicQuery,
         {
           topK: 8,
@@ -173,7 +173,7 @@ export class ContextRetriever {
    Semantic Context for Real-time Enrichment
   ****************************************************/
   async getSemanticContext(
-    participantPhone: string,
+    userId: string,
     userQuery: string,
     options: {
       realTime?: boolean;
@@ -191,7 +191,7 @@ export class ContextRetriever {
     try {
       // Simple semantic search with higher relevance threshold
       const result = await this.vectorStore.getRelevantContext(
-        participantPhone,
+        userId,
         userQuery,
         {
           topK: 3, // Keep it focused
@@ -237,23 +237,19 @@ export class ContextRetriever {
    Detailed Context for Complex Issues -- TODO, actually use this
   ****************************************************/
   async getDetailedContext(
-    participantPhone: string,
+    userId: string,
     query: string
   ): Promise<DetailedContext> {
     const startTime = Date.now();
 
     try {
       // Get detailed context from transcripts for specific issue resolution
-      const result = await this.vectorStore.getRelevantContext(
-        participantPhone,
-        query,
-        {
-          topK: 10,
-          contentTypes: ["transcript", "summary"],
-          maxDays: 180, // Longer lookback for complex issues
-          minScore: 0.4,
-        }
-      );
+      const result = await this.vectorStore.getRelevantContext(userId, query, {
+        topK: 10,
+        contentTypes: ["transcript", "summary"],
+        maxDays: 180, // Longer lookback for complex issues
+        minScore: 0.3,
+      });
 
       if (!result.success) {
         this.log.warn(

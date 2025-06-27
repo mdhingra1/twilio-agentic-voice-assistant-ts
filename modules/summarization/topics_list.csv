@@ -1,11 +1,23 @@
 ID,Category
-delivery-issues,Delivery Issues
-missing-items,Delivery Issues
-substitution-complaints,Delivery Issues
-damaged-products,Delivery Issues
-shopper-experience,Shopper Performance
-unprofessional-shopper,Shopper Performance
-product-quality,Product Issues
-app-crash,Technical Issues
-payment-problems,Technical Issues
-account-access,Technical Issues
+unauthorized-transactions,Fraud & Security
+lost-or-stolen-card,Fraud & Security
+disputed-charges,Fraud & Security
+card-activation,Card Management
+card-replacement,Card Management
+billing-issues,Billing & Payments
+late-fee-questions,Billing & Payments
+payment-declined,Billing & Payments
+rewards-questions,Rewards & Offers
+points-redemption,Rewards & Offers
+account-login-issues,Technical Issues
+app-or-website-errors,Technical Issues
+update-personal-info,Account Services
+close-account-request,Account Services
+credit-limit-questions,Credit & Limits
+application-status,Card Applications
+application-denied,Card Applications
+application-requirements,Card Applications
+upload-documents,Card Applications
+pre-approved-offers,Card Applications
+card-benefits-questions,Card Applications
+upgrade-downgrade-card,Card Applications
