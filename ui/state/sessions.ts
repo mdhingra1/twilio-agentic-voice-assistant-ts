@@ -77,6 +77,11 @@ export function getSummaryState(state: RootState, callSid: string) {
   return session?.summary;
 }
 
+export function getHistoricalContext(state: RootState, callSid: string) {
+  const session = selectSessionById(state, callSid);
+  return session?.historicalContext;
+}
+
 export function getQuestionState(state: RootState, callSid: string) {
   const session = selectSessionById(state, callSid);
   return session?.questions;
@@ -85,6 +90,16 @@ export function getQuestionState(state: RootState, callSid: string) {
 export function getAuxMessageState(state: RootState, callSid: string) {
   const session = selectSessionById(state, callSid);
   return session?.auxiliaryMessages;
+}
+
+export function getDynamicSemanticContext(state: RootState, callSid: string) {
+  const session = selectSessionById(state, callSid);
+  return session?.dynamicSemanticContext;
+}
+
+export function getUserData(state: RootState, callSid: string) {
+  const session = selectSessionById(state, callSid);
+  return session?.user;
 }
 
 /****************************************************

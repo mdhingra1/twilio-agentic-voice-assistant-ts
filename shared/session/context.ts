@@ -3,6 +3,8 @@ import type { GovernanceState } from "../../modules/governance/types.js";
 import type { AIQuestionState } from "../../modules/human-in-the-loop/types.js";
 import type { CallSummary } from "../../modules/summarization/types.js";
 import type { UserRecord } from "../db-entities.js";
+import type { UserHistoryContext } from "../../services/vector-store/types.js";
+import {ProfileEvent} from "../../lib/segment_types";
 
 export interface SessionContext {
   auxiliaryMessages: Record<string, AuxiliaryMessage>; // messages sent to the user outside of the conversation
@@ -13,7 +15,22 @@ export interface SessionContext {
   procedures: Record<string, Procedure>;
   questions: AIQuestionState;
   summary: CallSummary;
-  user: UserRecord;
+  user: User;
+  historicalContext?: {
+    userHistory: UserHistoryContext;
+    hasHistory: boolean;
+    lastCallDate?: string;
+    commonTopics: string[];
+    formattedContext: string;
+    topicSpecificContext?: string;
+    relatedTopics?: string[];
+  };
+  dynamicSemanticContext?: {
+    semanticMatches: { id: string; content: string; score: number; timestamp: string }[];
+    lastQuery: string;
+    confidence: number;
+    updatedAt: Date;
+  };
 }
 
 // this is also defined in the UI store
@@ -61,9 +78,20 @@ export interface CallDetails {
 export interface ContactCenter {
   waitTime: number; // minutes
 }
+export interface User {
+  user_id: string;
+  traits: Record<string, string>;
+  events: ProfileEvent[];
+}
 
 export interface CompanyDetails {
   name: string;
   description: string;
   email: string;
+}
+
+export interface Datagraph {
+  name: string;
+  // json string of datagraph definition
+  value: string;
 }

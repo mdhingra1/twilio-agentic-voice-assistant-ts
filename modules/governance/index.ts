@@ -224,17 +224,9 @@ function calculateCriticalStepScore(governance: GovernanceState): number {
   // Define critical steps for each procedure type
   // This should be customized to your business logic
   const criticalSteps: Record<string, string[]> = {
-    process_refund_request: [
-      "identify_user",
-      "locate_order",
-      "verify_refund_details",
-    ],
-    handle_complaint: [
-      "identify_user",
-      "document_complaint",
-      "escalate_if_needed",
-    ],
-    place_order: ["verify_payment", "confirm_inventory", "send_confirmation"],
+    fetch_entity: ["learn_datagraph", "get_entity_chain"],
+    identify_user: ["get_identifier", "verify_identifier", "confirm_identity"],
+    handle_credit_card_dispute: ["check_existing_dispute_context", "acknowledge_previous_dispute", "identify_disputed_transaction", "save_dispute_context", "handle_call_interruption", "create_formal_dispute_case", "transfer_to_human_agent"],
     // Add other procedures and their critical steps
   };
 

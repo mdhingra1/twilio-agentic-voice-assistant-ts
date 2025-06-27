@@ -1,11 +1,20 @@
 ID,Category
-delivery-issues,Delivery Issues
-missing-items,Delivery Issues
-substitution-complaints,Delivery Issues
-damaged-products,Delivery Issues
-shopper-experience,Shopper Performance
-unprofessional-shopper,Shopper Performance
-product-quality,Product Issues
-app-crash,Technical Issues
-payment-problems,Technical Issues
-account-access,Technical Issues
+unauthorized-charge,Unauthorized Charge
+suspected-fraud-transaction,Suspected Fraudulent Transaction
+lost-card,Lost Card Report
+stolen-card,Stolen Card Report
+card-not-present-fraud,Card-Not-Present Fraud
+account-takeover,Account Takeover
+merchant-dispute-unauthorized,Merchant Dispute – Unauthorized Transaction
+recurring-charge-fraud,Recurring Charge Fraud
+fraud-investigation-status,Fraud Investigation Status
+replacement-card-request,Replacement Card Request
+credit-report-fraud,Credit Report Fraud Alert
+transaction-monitoring,Transaction Monitoring Setup
+fraud-education-resources,Fraud Prevention Education
+credit-limit-increase,Credit Limit Increase
+statement-inquiry,Statement / Billing Inquiry
+rewards-redemption,Rewards Redemption & Points
+payment-assistance,Payment Assistance / Hardship
+card-activation,New Card Activation & Setup
+balance-transfer-request,Balance Transfer Request
