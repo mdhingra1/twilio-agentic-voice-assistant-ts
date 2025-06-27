@@ -12,7 +12,12 @@ import { GovernanceService } from "../modules/governance/index.js";
 import { SummarizationService } from "../modules/summarization/index.js";
 import { VectorStoreService } from "../services/vector-store/index.js";
 import { ContextRetriever } from "../services/vector-store/context-retriever.js";
-import {DEFAULT_TWILIO_NUMBER, HOSTNAME, SEGMENT_PROFILE_API_TOKEN, SEGMENT_SPACE_ID} from "../shared/env.js";
+import {
+  DEFAULT_TWILIO_NUMBER,
+  HOSTNAME,
+  SEGMENT_PROFILE_API_TOKEN,
+  SEGMENT_SPACE_ID,
+} from "../shared/env.js";
 import type { CallDetails, SessionContext } from "../shared/session/context.js";
 import { AgentResolver } from "./agent-resolver/index.js";
 import { OpenAIConsciousLoop } from "./conscious-loop/openai.js";
@@ -32,7 +37,7 @@ import {
   startRecording,
   type TwilioCallWebhookPayload,
 } from "./twilio/voice.js";
-import {SegmentProfileClient} from "../lib/profile.js";
+import { SegmentProfileClient } from "../lib/profile.js";
 
 const router = Router();
 const default_user = "f9708bce";
@@ -78,27 +83,30 @@ router.post("/incoming-call", async (req, res) => {
     // Get historical context for greeting generation only
     const historicalContext = await getHistoricalContext(userId, log);
 
-    const user = {user_id:userId}
-    const profileClient = new SegmentProfileClient(SEGMENT_SPACE_ID, SEGMENT_PROFILE_API_TOKEN);
+    const user = { user_id: userId };
+    const profileClient = new SegmentProfileClient(
+      SEGMENT_SPACE_ID,
+      SEGMENT_PROFILE_API_TOKEN
+    );
     try {
-      const events = await profileClient.getProfileEvents(`user_id:${userId}`)
-      user.events = events.data
+      const events = await profileClient.getProfileEvents(`user_id:${userId}`);
+      user.events = events.data;
     } catch (error) {
       log.warn(
         "incoming-call",
         `Failed to fetch profile events for user ${userId}: ${error}`
       );
-      user.events = []
+      user.events = [];
     }
     try {
-      const data = await profileClient.getProfileTraits(`user_id:${userId}`)
-      user.traits = data.traits
+      const data = await profileClient.getProfileTraits(`user_id:${userId}`);
+      user.traits = data.traits;
     } catch (error) {
       log.warn(
-          "incoming-call",
-          `Failed to fetch profile events for user ${userId}: ${error}`
+        "incoming-call",
+        `Failed to fetch profile events for user ${userId}: ${error}`
       );
-      user.traits = []
+      user.traits = [];
     }
 
     log.debug(
@@ -477,6 +485,15 @@ async function enrichSemanticContext(
     );
 
     if (semanticContext.hasRelevantContext) {
+      // Format semantic matches into readable transcript text
+      const formattedMatches = semanticContext.matches
+        .map((match, index) => {
+          const timestamp = match.metadata.callStartTime as string;
+          const date = new Date(timestamp).toLocaleDateString();
+          return `**Conversation ${index + 1} (${date}):**\n${match.content}`;
+        })
+        .join("\n\n");
+
       const enrichedContext = {
         semanticMatches: semanticContext.matches.map((match) => ({
           id: match.id,
@@ -487,6 +504,7 @@ async function enrichSemanticContext(
         lastQuery: userQuery,
         confidence: semanticContext.confidence,
         updatedAt: new Date(),
+        formattedContext: formattedMatches,
       };
 
       store.setContext({ dynamicSemanticContext: enrichedContext });

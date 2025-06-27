@@ -30,6 +30,7 @@ export interface SessionContext {
     lastQuery: string;
     confidence: number;
     updatedAt: Date;
+    formattedContext: string;
   };
 }
 
