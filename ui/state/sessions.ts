@@ -97,6 +97,11 @@ export function getDynamicSemanticContext(state: RootState, callSid: string) {
   return session?.dynamicSemanticContext;
 }
 
+export function getUserData(state: RootState, callSid: string) {
+  const session = selectSessionById(state, callSid);
+  return session?.user;
+}
+
 /****************************************************
  Actions
 ****************************************************/

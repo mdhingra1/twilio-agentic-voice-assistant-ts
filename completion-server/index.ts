@@ -39,7 +39,7 @@ const default_user = "f9708bce";
 // map of phone to user
 const phoneToUser: Record<string, string> = {
   "+12092421066": "f9708bce",
-  "+17783220513": "a67ef6a1",
+  "+17783220513": "99b2a3c5",
 };
 
 // Helper function to resolve userId from participantPhone
@@ -396,6 +396,8 @@ router.post("/wrapup-call", async (req, res) => {
     return;
   }
 
+  log.info(`/wrapup-call`, "there is handoff data in the wrapup webhook");
+
   let handoffData: AppHandoffData;
   try {
     handoffData = JSON.parse(payload.HandoffData) as AppHandoffData;
@@ -470,7 +472,7 @@ async function enrichSemanticContext(
       {
         realTime: true,
         maxLatency: 500,
-        confidenceThreshold: 0.3,
+        confidenceThreshold: 0.2,
       }
     );
 

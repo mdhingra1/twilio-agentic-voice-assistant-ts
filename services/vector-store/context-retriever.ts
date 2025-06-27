@@ -185,7 +185,7 @@ export class ContextRetriever {
     matches: ConversationMatch[];
     confidence: number;
   }> {
-    const { maxLatency = 500, confidenceThreshold = 0.4 } = options;
+    const { maxLatency = 500, confidenceThreshold = 0.2 } = options;
     const startTime = Date.now();
 
     try {
@@ -197,7 +197,7 @@ export class ContextRetriever {
           topK: 3, // Keep it focused
           contentTypes: ["transcript"],
           maxDays: 90, // Broader time window for semantic matches
-          minScore: 0.4, // Lower threshold to get more candidates
+          minScore: 0.2, // Lower threshold to get more candidates
         }
       );
 
@@ -300,7 +300,8 @@ export class ContextRetriever {
     matches: ConversationMatch[],
     targetTopics: string[]
   ): ConversationMatch[] {
-    return matches
+    // First, rank by topic relevance (score boost)
+    const relevanceRanked = matches
       .map((match) => {
         // Calculate topic relevance boost
         const matchTopics = match.metadata.topics || [];
@@ -322,6 +323,13 @@ export class ContextRetriever {
         };
       })
       .sort((a, b) => b.score - a.score);
+
+    // Take top 3 by relevance, then rank by recency (most recent first)
+    return relevanceRanked.slice(0, 3).sort((a, b) => {
+      const dateA = new Date(a.metadata.callStartTime || 0).getTime();
+      const dateB = new Date(b.metadata.callStartTime || 0).getTime();
+      return dateB - dateA; // Most recent first
+    });
   }
 
   private extractRelatedTopics(
@@ -393,7 +401,7 @@ export class ContextRetriever {
 
       const summaries = context.recentSummaries
         .slice(0, 3) // Limit to most recent
-        .map((match) => {
+        .map((match, index) => {
           const date = new Date(
             match.metadata.callStartTime
           ).toLocaleDateString();
@@ -401,7 +409,13 @@ export class ContextRetriever {
             match.metadata.topics?.join(", ") || "No specific topics";
           // Include the actual conversation content/summary
           const content = match.content || "No summary available";
-          return `• ${date} (Topics: ${topics}): ${content}`;
+
+          // Mark the most recent conversation prominently
+          const priority = index === 0 ? "**MOST RECENT** - " : "";
+          const recencyNote =
+            index === 0 ? " [PRIORITY: Address this first]" : "";
+
+          return `• ${priority}${date} (Topics: ${topics}): ${content}${recencyNote}`;
         })
         .join("\n");
 
