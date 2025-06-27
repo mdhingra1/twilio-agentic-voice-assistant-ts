@@ -77,24 +77,6 @@ function UserProfileDetails({ user, call, historicalContext }: UserProfileDetail
     return rawUserId;
   };
 
-  // Helper to parse trait value - split by comma and extract name/value
-  const parseTraitValue = (value: string) => {
-    if (typeof value !== 'string') {
-      return { name: String(value), value: '' };
-    }
-    
-    const parts = value.split(',');
-    if (parts.length >= 2) {
-      return {
-        name: parts[0].trim(),
-        value: parts.slice(1).join(',').trim()
-      };
-    }
-    
-    // If no comma, treat the whole value as the name
-    return { name: value.trim(), value: '' };
-  };
-
   const userId = getUserId();
   const traits = user?.traits || {};
   const events = user?.events || [];
@@ -166,7 +148,7 @@ function UserProfileDetails({ user, call, historicalContext }: UserProfileDetail
                   {Object.entries(traits)
                     .filter(([key, value]) => value && value !== '' && value !== 'null' && value !== 'undefined')
                     .map(([key, value]) => {
-                      const parsed = parseTraitValue(String(value));
+                      const parsed = { name: key, value: String(value) };
                       return (
                         <Table.Tr key={key}>
                           <Table.Td>

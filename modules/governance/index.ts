@@ -224,7 +224,10 @@ function calculateCriticalStepScore(governance: GovernanceState): number {
   // Define critical steps for each procedure type
   // This should be customized to your business logic
   const criticalSteps: Record<string, string[]> = {
-    fetch_enity: ["learn_datagraph", "get_entity_chain"],
+    fetch_entity: ["learn_datagraph", "get_entity_chain"],
+    add_to_user_identity: ["identify_user"],
+    provide_application_information: ["required_documents"],
+    check_current_application_status: ["check_status_with_profile"],
     // Add other procedures and their critical steps
   };
 

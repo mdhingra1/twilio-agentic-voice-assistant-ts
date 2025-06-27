@@ -2,6 +2,101 @@ import type { ToolDefinition } from "../../types.js";
 
 export const commonToolManifest: ToolDefinition[] = [
   {
+    name: "getProfileTraits",
+    description:
+        "Get user traits from Segment Profile API using external ID (e.g., email:user@example.com)",
+    type: "function",
+    parameters: {
+      type: "object",
+      properties: {
+        external_id: {
+          type: "string",
+          description:
+              "The external identifier in format type:value (e.g., email:user@example.com)",
+        },
+        space_id: {
+          type: "string",
+          description:
+              "Optional Segment space ID (uses default if not provided)",
+        },
+      },
+      required: ["external_id"],
+    },
+  },
+  {
+    name: "getProfileEvents",
+    description:
+        "Get user events from Segment Profile API using external ID (e.g., email:user@example.com)",
+    type: "function",
+    parameters: {
+      type: "object",
+      properties: {
+        external_id: {
+          type: "string",
+          description:
+              "The external identifier in format type:value (e.g., email:user@example.com)",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum number of events to return (1-200)",
+          // minimum: 1,
+          // maximum: 200,
+        },
+        cursor: {
+          type: "string",
+          description: "Cursor for pagination to get next page of events",
+        },
+        space_id: {
+          type: "string",
+          description:
+              "Optional Segment space ID (uses default if not provided)",
+        },
+      },
+      required: ["external_id"],
+    },
+  },
+  {
+    name: "identify_user",
+    description: "Update user traits and profile information in Segment",
+    type: "function",
+    parameters: {
+      type: "object",
+      properties: {
+        user_id: {
+          type: "string",
+          description: "The unique identifier for the user",
+        },
+        traits: {
+          type: "object",
+          description: "User traits to update",
+          properties: {},
+          additionalProperties: true,
+        },
+        anonymous_id: {
+          type: "string",
+          description: "Anonymous identifier to link with user_id",
+        },
+        timestamp: {
+          type: "string",
+          description: "ISO 8601 timestamp (defaults to current time)",
+        },
+        context: {
+          type: "object",
+          description: "Additional context information",
+          properties: {},
+          additionalProperties: true,
+        },
+        integrations: {
+          type: "object",
+          description: "Integration-specific settings",
+          properties: {},
+          additionalProperties: true,
+        },
+      },
+      required: ["user_id"],
+    },
+  },
+  {
     name: "getEntity",
     description:
       "Get all rows for a specific entity based on the datagraph such as Accounts or Transactions. Calls may need to be chained.",
