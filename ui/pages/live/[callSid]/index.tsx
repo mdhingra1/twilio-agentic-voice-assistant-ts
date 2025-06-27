@@ -1,5 +1,6 @@
 import { GovernanceContainer } from "@/components/GovernanceContainer";
 import { HistoricalContextContainer } from "@/components/HistoricalContextContainer";
+import { UserProfileContainer } from "@/components/UserProfileContainer";
 import { TruncatedText } from "@/components/TruncateText";
 import { useAppSelector } from "@/state/hooks";
 import {
@@ -29,7 +30,11 @@ export default function LiveCallPage() {
       </div>
 
       <div style={{ flex: 1 }}>
-        <Subconscious />
+        <Profile />
+      </div>
+
+      <div style={{ flex: 1 }}>
+        <AIContextSystem />
       </div>
     </div>
   );
@@ -84,13 +89,72 @@ function Conscious() {
 
       <Paper className="paper">
         <Title order={4}>Auxiliary Messages</Title>
-
         <AuxiliaryMessageTable />
       </Paper>
+      
       <Paper className="paper">
         <Title order={4}>Human in the Loop</Title>
         <HumanInTheLoop />
       </Paper>
+
+      {/* Less important sections moved to bottom */}
+      <SummarySection />
+      
+      <Paper className="paper">
+        <GovernanceContainer callSid={callSid} />
+      </Paper>
+    </div>
+  );
+}
+
+/****************************************************
+ Profile Column
+****************************************************/
+function Profile() {
+  const router = useRouter();
+  const callSid = router.query.callSid as string;
+
+  const theme = useMantineTheme();
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: theme.spacing.sm,
+      }}
+    >
+      <Paper className="paper">
+        <Title order={3}>Profile</Title>
+      </Paper>
+
+      <UserProfileContainer callSid={callSid} />
+    </div>
+  );
+}
+
+/****************************************************
+ AI Context System Column
+****************************************************/
+function AIContextSystem() {
+  const router = useRouter();
+  const callSid = router.query.callSid as string;
+
+  const theme = useMantineTheme();
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: theme.spacing.sm,
+      }}
+    >
+      <Paper className="paper">
+        <Title order={3}>AI Context System</Title>
+      </Paper>
+
+      <HistoricalContextContainer callSid={callSid} />
     </div>
   );
 }
@@ -319,38 +383,6 @@ function AuxMessageRow({ callSid, msgId }: { callSid: string; msgId: string }) {
   );
 }
 
-/****************************************************
- Subconscious
-****************************************************/
-
-function Subconscious() {
-  const router = useRouter();
-  const callSid = router.query.callSid as string;
-
-  const theme = useMantineTheme();
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: theme.spacing.sm,
-      }}
-    >
-      <Paper className="paper">
-        <Title order={3}>Subconscious</Title>
-      </Paper>
-
-      <SummarySection />
-
-      <HistoricalContextContainer callSid={callSid} />
-
-      <Paper className="paper">
-        <GovernanceContainer callSid={callSid} />
-      </Paper>
-    </div>
-  );
-}
 
 function SummarySection() {
   const router = useRouter();
