@@ -2,7 +2,7 @@ import type { Procedure } from "../types.js";
 
 export const procedures: Record<string, Procedure> = [
   {
-    id: "fetch_enity",
+    id: "fetch_entity",
     description:
       "Use the provided datagraph and getEntity tool to fetch the information needed by the user",
     steps: [

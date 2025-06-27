@@ -225,9 +225,8 @@ function calculateCriticalStepScore(governance: GovernanceState): number {
   // This should be customized to your business logic
   const criticalSteps: Record<string, string[]> = {
     fetch_entity: ["learn_datagraph", "get_entity_chain"],
-    add_to_user_identity: ["identify_user"],
-    provide_application_information: ["required_documents"],
-    check_current_application_status: ["check_status_with_profile"],
+    identify_user: ["get_identifier", "verify_identifier", "confirm_identity"],
+    handle_credit_card_dispute: ["check_existing_dispute_context", "acknowledge_previous_dispute", "identify_disputed_transaction", "save_dispute_context", "handle_call_interruption", "create_formal_dispute_case", "transfer_to_human_agent"],
     // Add other procedures and their critical steps
   };
 
