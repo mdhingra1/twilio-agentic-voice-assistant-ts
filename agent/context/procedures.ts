@@ -2,7 +2,49 @@ import type { Procedure } from "../types.js";
 
 export const procedures: Record<string, Procedure> = [
   {
-    id: "fetch_enity",
+    id: "add_to_user_identity",
+    description: "Update any new traits to user profile with information provided by the user",
+    steps: [
+      {
+        id: "identify_user",
+        description: "Add or update any new traits to user profile",
+        strictness: "conditional",
+        conditions: "Only do this step if new traits or identifiers are provided by the user",
+        completionCriteria: "A trait has been successfully added to the user profile",
+        instructions: "User the identify_user tool to update or add new traits or identifiers to profile."
+      }
+    ]
+  },
+  {
+    id: "provide_application_information",
+    description:
+        "Provide information about the application to the user, including the requirements",
+    steps: [
+      {
+        id: "required_documents",
+        description: "List the required documents for the application",
+        strictness: "required",
+        completionCriteria: "List of required documents has been provided",
+        instructions: "Provide a clear list of documents needed for the application: copy of your W2, 2 years of Tax returns, your EIN, and a copy of your ID."
+      },
+    ]
+  },
+  {
+    id: "check_current_application_status",
+    description:
+        "Check the status of the user's current application",
+    steps: [
+      {
+        id: "check_status_with_profile",
+        description: "get the profile events via tool, and use event name Document Uploaded to check current application status",
+        strictness: "required",
+        completionCriteria: "List what documents have been uploaded by the user and what still needs to be uploaded",
+        instructions: "use getProfileEvents for event name Document Uploaded and let user know what is missing from required documents: copy of your W2, 2 years of Tax returns, your EIN, and a copy of your ID."
+      }
+    ]
+  },
+  {
+    id: "fetch_entity",
     description:
         "Use the provided datagraph and getEntity tool to fetch the information needed by the user",
     steps: [
@@ -10,7 +52,7 @@ export const procedures: Record<string, Procedure> = [
         id: "learn_datagraph",
         description:
             "Learn the customers datagraph to understand the relationship between tables in their data warehouse.",
-        strictness: "required",
+        strictness: "required"
       },
       {
         id: "get_entity_chain",
@@ -18,25 +60,25 @@ export const procedures: Record<string, Procedure> = [
         strictness: "required",
         completionCriteria: "Data rows have been fetched",
         instructions:
-            "Use getEntity tool, may require chaining across multiple entity/table relationships.",
-      },
-    ],
+            "Use getEntity tool, may require chaining across multiple entity/table relationships."
+      }
+    ]
   },
   {
     id: "identify_user",
     description:
-      "Verify the identity of a user through context or active identification",
+        "Verify the identity of a user through context or active identification",
     steps: [
       {
         id: "get_identifier",
         description:
-          "Gather an identifier from the user that can be used to lookup their account.",
+            "Gather an identifier from the user that can be used to lookup their account.",
         strictness: "conditional",
         completionCriteria:
-          "Valid email address or phone number has been provided",
+            "Valid email address or phone number has been provided",
         conditions:
-          "This is not required when the user's profile has been provided in context. ",
-        instructions: "",
+            "This is not required when the user's profile has been provided in context. ",
+        instructions: ""
       },
       {
         id: "verify_identifier",
@@ -45,7 +87,7 @@ export const procedures: Record<string, Procedure> = [
         completionCriteria: "Identifier has been validated",
         conditions: "Required when get_identifier step was performed",
         instructions:
-          "Ensure email format is valid or phone number is in correct format",
+            "Ensure email format is valid or phone number is in correct format"
       },
       {
         id: "confirm_identity",
@@ -53,109 +95,8 @@ export const procedures: Record<string, Procedure> = [
         strictness: "required",
         completionCriteria: "User has verbally confirmed their identity",
         instructions:
-          "If profile exists in context, confirm name. Otherwise, confirm details from identifier.",
-      },
-    ],
-  },
-  {
-    id: "provide_order_information",
-    description:
-      "Retrieve and present order information based on available context and identifiers",
-    steps: [
-      {
-        id: "identify_user",
-        description: "Verify user identity if needed",
-        strictness: "conditional",
-        completionCriteria:
-          "Either confirmation number provided OR user identity verified",
-        conditions: "Skip if valid confirmation number provided",
-        instructions:
-          "Only perform user identification if no confirmation number is provided",
-      },
-      {
-        id: "gather_order_details",
-        description: "Collect information needed to locate the order",
-        strictness: "critical",
-        completionCriteria:
-          "Either: (A) Valid CN-00-00-00 format confirmation number obtained, OR (B) Order description collected from verified user",
-        instructions:
-          "Accept confirmation number or gather order description if user is verified",
-      },
-      {
-        id: "confirm_order",
-        description: "Verify order details with user",
-        strictness: "required",
-        completionCriteria: "User has confirmed the order details are correct",
-        instructions:
-          "Review key order details with user to ensure correct order was found",
-      },
-    ],
-  },
-  {
-    id: "process_refund_request",
-    description:
-      "Handle customer refund requests according to defined policies and approval workflows",
-    steps: [
-      {
-        id: "identify_user",
-        description: "Verify the identity of the user requesting the refund",
-        strictness: "critical",
-        completionCriteria:
-          "User identity has been verified through account information or order details",
-        instructions:
-          "Confirm user identity through account details, email address, or other identifying information associated with the order",
-      },
-      {
-        id: "locate_order",
-        description:
-          "Find the specific order for which a refund is being requested",
-        strictness: "critical",
-        completionCriteria:
-          "Valid order record has been located in the system with matching user information",
-        instructions:
-          "Use order number, confirmation ID, or search by user purchase history to locate the exact order",
-      },
-      {
-        id: "request_human_approval",
-        description:
-          "Obtain approval from a human agent for refunds outside standard criteria",
-        strictness: "critical",
-        completionCriteria:
-          "Human agent has provided explicit approval for the refund",
-        instructions:
-          "Contact human agent with order details, refund reason, and request approval for processing",
-      },
-      {
-        id: "send_confirmation_sms",
-        description:
-          "Send an SMS confirmation to the customer before processing the refund",
-        strictness: "critical",
-        completionCriteria:
-          "SMS confirmation has been sent to the customer's verified phone number",
-        instructions:
-          "Execute the tool to send an SMS confirmation to the user. This SMS will include details about the refund. They should validate the details before the refund is processed.",
-      },
-      {
-        id: "verify_refund_details",
-        description:
-          "Verify that the details in the SMS confirmation the user received are accurate.",
-        strictness: "critical",
-        completionCriteria:
-          "The user has explicitly stated that the refund details are accurate.",
-        instructions:
-          "Ask the user to confirm that the refund details are correct. Do not execute the refund until they have give you their approval.",
-      },
-      {
-        id: "execute_refund",
-        description: "Process the refund through the payment system",
-        strictness: "required",
-        completionCriteria:
-          "Refund has been successfully processed and confirmation received from payment system",
-        conditions:
-          "Only execute if either standard eligibility criteria are met OR human approval has been obtained",
-        instructions:
-          "Use the refund processing tool to issue the refund to the original payment method",
-      },
-    ],
-  },
+            "If profile exists in context, confirm name. Otherwise, confirm details from identifier."
+      }
+    ]
+},
 ].reduce((acc, cur) => Object.assign(acc, { [cur.id]: cur }), {});

@@ -124,7 +124,8 @@ export const getEntity: ToolExecutor<
     > = async (args, deps) => {
   switch (args.entity) {
     case "account":
-      return [{"ID": "act_74hfnjj", "CUSTOMER_ID": deps.store.context.user?.user_id, "STATUS": "open", "BALANCE": 1000, "CURRENCY": "USD", "ACCOUNT_TYPE": "credit_card", "CREATED_AT": "2023-01-01T00:00:00Z", "UPDATED_AT": "2023-01-02T00:00:00Z"}];
+      return [{"ID": "act_74hfnjj", "ACCOUNT_DESCRIPTION": "personal use", "CUSTOMER_ID": deps.store.context.user?.user_id, "STATUS": "open", "BALANCE": 1000, "CURRENCY": "USD", "ACCOUNT_TYPE": "credit_card", "CREATED_AT": "2023-01-01T00:00:00Z", "UPDATED_AT": "2023-01-02T00:00:00Z"},
+        {"ID": "act_5hh8", "ACCOUNT_DESCRIPTION": "business use", "CUSTOMER_ID": deps.store.context.user?.user_id, "STATUS": "open", "BALANCE": 2000, "CURRENCY": "USD", "ACCOUNT_TYPE": "credit_card", "CREATED_AT": "2025-01-01T00:00:00Z", "UPDATED_AT": "2025-06-02T00:00:00Z"}];
     case "transaction":
       return [{"ID": "txn_123", "ACCOUNT_ID": "act_74hfnjj", "AMOUNT": 100, "CURRENCY": "USD", "DESCRIPTION": "Furniture", "STATUS": "completed", "CREATED_AT": "2025-01-03T00:00:00Z"},
               {"ID": "txn_456", "ACCOUNT_ID": "act_74hfnjj", "AMOUNT": 200, "CURRENCY": "USD", "DESCRIPTION": "Electronics", "STATUS": "completed", "CREATED_AT": "2025-05-04T00:00:00Z"},
