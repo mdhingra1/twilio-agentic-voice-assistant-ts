@@ -34,7 +34,7 @@ export class SummarizationService {
   // Phone to user mapping - in production this would come from a database
   private phoneToUser: Record<string, string> = {
     "+12092421066": "f9708bce",
-    "+17783220513": "a67ef6a1",
+    "+17783220513": "99b2a3c5",
   };
   private defaultUser = "f9708bce";
 

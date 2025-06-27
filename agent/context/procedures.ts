@@ -4,21 +4,22 @@ export const procedures: Record<string, Procedure> = [
   {
     id: "fetch_enity",
     description:
-        "Use the provided datagraph and getEntity tool to fetch the information needed by the user",
+      "Use the provided datagraph and getEntity tool to fetch the information needed by the user",
     steps: [
       {
         id: "learn_datagraph",
         description:
-            "Learn the customers datagraph to understand the relationship between tables in their data warehouse.",
+          "Learn the customers datagraph to understand the relationship between tables in their data warehouse.",
         strictness: "required",
       },
       {
         id: "get_entity_chain",
-        description: "use the getEntity tool to fetch the information needed by the user",
+        description:
+          "use the getEntity tool to fetch the information needed by the user",
         strictness: "required",
         completionCriteria: "Data rows have been fetched",
         instructions:
-            "Use getEntity tool, may require chaining across multiple entity/table relationships.",
+          "Use getEntity tool, may require chaining across multiple entity/table relationships.",
       },
     ],
   },
@@ -58,103 +59,96 @@ export const procedures: Record<string, Procedure> = [
     ],
   },
   {
-    id: "provide_order_information",
+    id: "handle_credit_card_dispute",
     description:
-      "Retrieve and present order information based on available context and identifiers",
+      "Handle credit card dispute inquiries with context preservation between calls",
     steps: [
       {
-        id: "identify_user",
-        description: "Verify user identity if needed",
+        id: "check_existing_dispute_context",
+        description:
+          "Review historical context for any existing dispute discussions",
+        strictness: "required",
+        completionCriteria:
+          "Historical context has been reviewed for dispute-related conversations",
+        instructions:
+          "Examine the provided historical context for previous conversations about unrecognized charges, disputes, or transaction issues",
+      },
+      {
+        id: "acknowledge_previous_dispute",
+        description:
+          "Acknowledge any previous dispute inquiry found in conversation history",
         strictness: "conditional",
-        completionCriteria:
-          "Either confirmation number provided OR user identity verified",
-        conditions: "Skip if valid confirmation number provided",
-        instructions:
-          "Only perform user identification if no confirmation number is provided",
-      },
-      {
-        id: "gather_order_details",
-        description: "Collect information needed to locate the order",
-        strictness: "critical",
-        completionCriteria:
-          "Either: (A) Valid CN-00-00-00 format confirmation number obtained, OR (B) Order description collected from verified user",
-        instructions:
-          "Accept confirmation number or gather order description if user is verified",
-      },
-      {
-        id: "confirm_order",
-        description: "Verify order details with user",
-        strictness: "required",
-        completionCriteria: "User has confirmed the order details are correct",
-        instructions:
-          "Review key order details with user to ensure correct order was found",
-      },
-    ],
-  },
-  {
-    id: "process_refund_request",
-    description:
-      "Handle customer refund requests according to defined policies and approval workflows",
-    steps: [
-      {
-        id: "identify_user",
-        description: "Verify the identity of the user requesting the refund",
-        strictness: "critical",
-        completionCriteria:
-          "User identity has been verified through account information or order details",
-        instructions:
-          "Confirm user identity through account details, email address, or other identifying information associated with the order",
-      },
-      {
-        id: "locate_order",
-        description:
-          "Find the specific order for which a refund is being requested",
-        strictness: "critical",
-        completionCriteria:
-          "Valid order record has been located in the system with matching user information",
-        instructions:
-          "Use order number, confirmation ID, or search by user purchase history to locate the exact order",
-      },
-      {
-        id: "request_human_approval",
-        description:
-          "Obtain approval from a human agent for refunds outside standard criteria",
-        strictness: "critical",
-        completionCriteria:
-          "Human agent has provided explicit approval for the refund",
-        instructions:
-          "Contact human agent with order details, refund reason, and request approval for processing",
-      },
-      {
-        id: "send_confirmation_sms",
-        description:
-          "Send an SMS confirmation to the customer before processing the refund",
-        strictness: "critical",
-        completionCriteria:
-          "SMS confirmation has been sent to the customer's verified phone number",
-        instructions:
-          "Execute the tool to send an SMS confirmation to the user. This SMS will include details about the refund. They should validate the details before the refund is processed.",
-      },
-      {
-        id: "verify_refund_details",
-        description:
-          "Verify that the details in the SMS confirmation the user received are accurate.",
-        strictness: "critical",
-        completionCriteria:
-          "The user has explicitly stated that the refund details are accurate.",
-        instructions:
-          "Ask the user to confirm that the refund details are correct. Do not execute the refund until they have give you their approval.",
-      },
-      {
-        id: "execute_refund",
-        description: "Process the refund through the payment system",
-        strictness: "required",
-        completionCriteria:
-          "Refund has been successfully processed and confirmation received from payment system",
         conditions:
-          "Only execute if either standard eligibility criteria are met OR human approval has been obtained",
+          "Only required if existing dispute context is found in historical conversation data",
+        completionCriteria:
+          "Customer has been acknowledged regarding their previous dispute inquiry",
         instructions:
-          "Use the refund processing tool to issue the refund to the original payment method",
+          "Reference the previous dispute discussion from historical context and ask if they want to continue with that issue",
+      },
+      {
+        id: "identify_disputed_transaction",
+        description:
+          "Gather information about the charge the customer doesn't recognize",
+        strictness: "critical",
+        completionCriteria:
+          "Specific merchant name and transaction details have been identified",
+        instructions:
+          "Ask for merchant name, approximate amount, and date. Use searchCustomerTransactions tool to find matching transactions",
+      },
+      {
+        id: "save_dispute_context",
+        description:
+          "Ensure dispute context is captured in conversation summary for future reference",
+        strictness: "required",
+        completionCriteria:
+          "Dispute information has been clearly discussed and will be captured in conversation summary",
+        instructions:
+          "Clearly state the dispute details during the conversation so they are captured in the call summary and available for future calls",
+      },
+      {
+        id: "handle_call_interruption",
+        description: "Gracefully handle if customer needs to end call suddenly",
+        strictness: "conditional",
+        conditions: "Only if customer indicates they need to end the call",
+        completionCriteria:
+          "Customer has been assured their information is saved",
+        instructions:
+          "Acknowledge their need to go, summarize the dispute information discussed, and invite them to call back to continue the dispute process",
+      },
+      {
+        id: "gather_additional_details",
+        description: "Collect comprehensive dispute information",
+        strictness: "required",
+        completionCriteria: "All necessary dispute details have been collected",
+        instructions:
+          "Get reason for dispute, any additional context, and confirm transaction details",
+      },
+      {
+        id: "create_formal_dispute_case",
+        description: "Create comprehensive dispute case for human agent review",
+        strictness: "critical",
+        completionCriteria:
+          "Dispute case has been created using createDisputeCase tool",
+        instructions:
+          "Use createDisputeCase tool with transaction ID, reason, and customer notes",
+      },
+      {
+        id: "transfer_to_human_agent",
+        description: "Transfer dispute case to human agent with full context",
+        strictness: "critical",
+        completionCriteria:
+          "Dispute case has been successfully transferred to human agent using transferDisputeToAgent tool",
+        instructions:
+          "Use transferDisputeToAgent tool with the dispute case ID to transfer call with comprehensive context",
+      },
+      {
+        id: "explain_next_steps",
+        description: "Inform customer about next steps in dispute process",
+        strictness: "required",
+        completionCriteria:
+          "Customer understands the dispute process timeline and next steps",
+        instructions:
+          "Explain that case has been prepared for human agent review and they will be contacted within 1-2 business days",
       },
     ],
   },

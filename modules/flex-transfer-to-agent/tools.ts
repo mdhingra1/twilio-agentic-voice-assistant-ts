@@ -5,7 +5,7 @@ import type { TransferToFlexHandoff } from "./types.js";
 
 export const transferToFlexAgentSpec: ToolDefinition = {
   name: "transferToAgent",
-  description: "Transfers the call to a Flex agent",
+  description: "Transfers the call to a Flex agent with comprehensive customer context",
   type: "function",
   parameters: {
     type: "object",
@@ -13,25 +13,15 @@ export const transferToFlexAgentSpec: ToolDefinition = {
       conversationSummary: {
         type: "string",
         description:
-          "A summarization of the conversation. This should be a few paragraphs long.",
-      },
-      department: {
-        type: "string",
-        enum: ["finance", "general", "support"],
-      },
-      reason: {
-        type: "string",
-        description: "The reason the call is being transferred.",
+          "A comprehensive summary of the conversation including the customer's request, any issues discussed, and context needed for the human agent.",
       },
     },
-    required: ["conversationSummary", "department", "reason"],
+    required: ["conversationSummary"],
   },
 };
 
 interface TransferToFlexAgent {
   conversationSummary: string;
-  department: string;
-  reason: string;
 }
 
 export const transferToFlexAgent: ToolExecutor<TransferToFlexAgent> = async (
@@ -40,18 +30,103 @@ export const transferToFlexAgent: ToolExecutor<TransferToFlexAgent> = async (
 ) => {
   const relay = deps.relay as ConversationRelayAdapter<TransferToFlexHandoff>;
 
-  setTimeout(() => {
-    relay.end({
-      reasonCode: "transfer-to-flex",
-      accountSid: TWILIO_ACCOUNT_SID, // todo: make this injected from dependencies
-      from: deps.store.context.call?.from ?? "",
-      to: deps.store.context.call?.to ?? "",
-      sessionId: deps.store.context.call?.conversationRelaySessionId ?? "",
+  // Check if Flex is properly configured
+  if (!TWILIO_ACCOUNT_SID) {
+    deps.log.error("flex-transfer", "TWILIO_ACCOUNT_SID not configured");
+    return "Error: Flex transfer not configured - missing TWILIO_ACCOUNT_SID";
+  }
 
-      conversationSummary: args.conversationSummary ?? "N/A",
-      customerData: deps.store.context.user ?? {},
-      reason: args.reason ?? "N/A",
-    });
+  // Create optimized customer data for handoff (avoiding large objects that could cause serialization issues)
+  const turns = deps.store.turns.list();
+  const recentTurns = turns.slice(-10); // Only include last 10 turns to avoid size issues
+  
+  const enhancedCustomerData = {
+    // Basic user information
+    userId: deps.store.context.user?.user_id,
+    userTraits: deps.store.context.user?.traits || {},
+    
+    // Call context
+    callDetails: {
+      callSid: deps.store.context.call?.callSid,
+      participantPhone: deps.store.context.call?.participantPhone,
+      direction: deps.store.context.call?.direction,
+      startedAt: deps.store.context.call?.startedAt,
+    },
+    
+    // Historical context summary (avoid large objects)
+    historicalSummary: {
+      hasHistory: deps.store.context.historicalContext?.hasHistory || false,
+      totalConversations: deps.store.context.historicalContext?.userHistory?.totalConversations || 0,
+      commonTopics: deps.store.context.historicalContext?.commonTopics || [],
+      lastCallDate: deps.store.context.historicalContext?.lastCallDate,
+    },
+    
+    // Current call summary
+    currentTopics: deps.store.context.summary?.topics || [],
+    
+    // Recent conversation context (limited to prevent size issues)
+    recentConversation: recentTurns.map(turn => ({
+      role: turn.role,
+      content: turn.content?.substring(0, 500), // Limit content length
+      timestamp: turn.createdAt,
+    })),
+    
+    // Auxiliary messages count (avoid including full message bodies)
+    auxiliaryMessagesCount: Object.keys(deps.store.context.auxiliaryMessages || {}).length,
+  };
+
+  deps.log.info(
+    "flex-transfer", 
+    `Transferring call ${deps.store.context.call?.callSid} to Flex with enhanced data`,
+    { 
+      customerDataKeys: Object.keys(enhancedCustomerData),
+      summaryLength: args.conversationSummary?.length || 0
+    }
+  );
+
+  setTimeout(() => {
+    try {
+      // Enhance conversation summary with dispute information if available
+      let enhancedSummary = args.conversationSummary ?? "N/A";
+      
+      // Check if this is a dispute case and include detailed dispute information
+      const auxiliaryMessages = deps.store.context.auxiliaryMessages || {};
+      const disputeMessages = Object.values(auxiliaryMessages).filter(msg => 
+        msg.body.includes("DISPUTE CASE CREATED") || msg.body.includes("CREDIT CARD DISPUTE")
+      );
+      
+      if (disputeMessages.length > 0) {
+        const disputeDetails = disputeMessages.map(msg => msg.body).join("\n\n");
+        enhancedSummary = `${enhancedSummary}\n\n=== DISPUTE CASE DETAILS ===\n${disputeDetails}`;
+      }
+
+      const handoffData = {
+        reasonCode: "transfer-to-flex" as const,
+        conversationSummary: enhancedSummary,
+        customerData: enhancedCustomerData,
+      };
+
+      // Test JSON serialization before sending
+      const testSerialization = JSON.stringify(handoffData);
+      deps.log.debug("flex-transfer", `Handoff data size: ${testSerialization.length} characters`);
+
+      relay.end(handoffData);
+      
+      deps.log.info("flex-transfer", "Handoff data sent successfully");
+    } catch (error) {
+      deps.log.error("flex-transfer", `Error during handoff: ${error}`);
+      
+      // Fallback with minimal data if main handoff fails
+      relay.end({
+        reasonCode: "transfer-to-flex" as const,
+        conversationSummary: args.conversationSummary ?? "Transfer requested - see customer data for details",
+        customerData: {
+          userId: deps.store.context.user?.user_id,
+          phone: deps.store.context.call?.participantPhone,
+          fallback: true,
+        },
+      });
+    }
   }, 3000);
 
   return "call-transfer-in-progress";

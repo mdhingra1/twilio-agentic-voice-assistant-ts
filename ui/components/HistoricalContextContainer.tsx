@@ -36,7 +36,7 @@ export function HistoricalContextContainer({ callSid }: { callSid: string }) {
             <ThemeIcon size="sm" variant="light" color="gray">
               📋
             </ThemeIcon>
-            <Title order={4}>AI Context System</Title>
+            <Title order={4}>Conversation Memory</Title>
           </Group>
           <Card bg="gray.0" p="md" radius="md">
             <Text size="sm" c="dimmed" ta="center">
@@ -118,7 +118,7 @@ export function HistoricalContextContainer({ callSid }: { callSid: string }) {
           <ThemeIcon size="sm" variant="light" color="blue">
             🧠
           </ThemeIcon>
-          <Title order={4}>AI Context System</Title>
+          <Title order={4}>Conversation Memory</Title>
           <Badge size="xs" variant="light" color="blue">
             Active
           </Badge>

@@ -12,6 +12,8 @@ import { selectCallTurns, selectTurnById } from "@/state/turns";
 import { redactPhoneNumbers } from "@/util/strings";
 import {
   Badge,
+  Button,
+  Collapse,
   Paper,
   Table,
   Text,
@@ -19,6 +21,7 @@ import {
   useMantineTheme,
 } from "@mantine/core";
 import { useRouter } from "next/router";
+import React from "react";
 
 export default function LiveCallPage() {
   const theme = useMantineTheme();
@@ -43,11 +46,12 @@ export default function LiveCallPage() {
 function Conscious() {
   const router = useRouter();
   const callSid = router.query.callSid as string;
+  const [advancedSectionsOpen, setAdvancedSectionsOpen] = React.useState(false);
 
   const theme = useMantineTheme();
 
   const summaryState = useAppSelector((state) =>
-    getSummaryState(state, callSid),
+    getSummaryState(state, callSid)
   );
 
   return (
@@ -78,30 +82,57 @@ function Conscious() {
         }}
       >
         <div>
-          <Title order={4}>Turns</Title>
+          <Title order={4}>Conversation</Title>
         </div>
-        <div
-          style={{ minHeight: "200px", maxHeight: "400px", overflow: "scroll" }}
-        >
-          <TurnsTable callSid={callSid} />
-        </div>
+        <TurnsTable callSid={callSid} />
       </Paper>
 
       <Paper className="paper">
         <Title order={4}>Auxiliary Messages</Title>
         <AuxiliaryMessageTable />
       </Paper>
-      
-      <Paper className="paper">
-        <Title order={4}>Human in the Loop</Title>
-        <HumanInTheLoop />
-      </Paper>
 
-      {/* Less important sections moved to bottom */}
-      <SummarySection />
-      
+      {/* Collapsible Advanced Sections */}
       <Paper className="paper">
-        <GovernanceContainer callSid={callSid} />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Title order={4}>Advanced Monitoring</Title>
+          <Button
+            variant="subtle"
+            size="xs"
+            onClick={() => setAdvancedSectionsOpen(!advancedSectionsOpen)}
+            style={{ fontSize: "0.8rem" }}
+          >
+            {advancedSectionsOpen ? "Hide Details" : "Show Details"}
+          </Button>
+        </div>
+
+        <Collapse in={advancedSectionsOpen}>
+          <div
+            style={{
+              marginTop: theme.spacing.md,
+              display: "flex",
+              flexDirection: "column",
+              gap: theme.spacing.sm,
+            }}
+          >
+            <Paper className="paper">
+              <Title order={5}>Human in the Loop</Title>
+              <HumanInTheLoop />
+            </Paper>
+
+            <SummarySection />
+
+            <Paper className="paper">
+              <GovernanceContainer callSid={callSid} />
+            </Paper>
+          </div>
+        </Collapse>
       </Paper>
     </div>
   );
@@ -134,7 +165,7 @@ function Profile() {
 }
 
 /****************************************************
- AI Context System Column
+ Conversation Memory Column
 ****************************************************/
 function AIContextSystem() {
   const router = useRouter();
@@ -151,7 +182,7 @@ function AIContextSystem() {
       }}
     >
       <Paper className="paper">
-        <Title order={3}>AI Context System</Title>
+        <Title order={3}>Conversation Memory</Title>
       </Paper>
 
       <HistoricalContextContainer callSid={callSid} />
@@ -165,25 +196,58 @@ function AIContextSystem() {
 
 function TurnsTable({ callSid }: { callSid: string }) {
   const turns = useAppSelector((state) => selectCallTurns(state, callSid));
+  const theme = useMantineTheme();
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when new turns are added
+  React.useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [turns.length]);
+
+  // Reverse the turns array to show chronological order (earliest first)
+  const chronologicalTurns = [...turns].reverse();
 
   return (
-    <Table stickyHeader>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th style={{ width: "60px" }}>Role</Table.Th>
-          <Table.Th style={{ width: "60px" }}>Origin</Table.Th>
-          <Table.Th style={{ width: "100%" }}>Content</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {turns.map((turn) => (
-          <Table.Tr key={`me7-${turn.id}`}>
-            {turn.role === "bot" && <BotRow turnId={turn.id} />}
-            {turn.role === "human" && <HumanRow turnId={turn.id} />}
+    <div
+      ref={scrollRef}
+      style={{
+        minHeight: "300px",
+        maxHeight: "500px",
+        overflow: "auto",
+        border: `1px solid ${theme.colors.gray[3]}`,
+        borderRadius: theme.radius.sm,
+      }}
+    >
+      <Table stickyHeader>
+        <Table.Thead>
+          <Table.Tr style={{ backgroundColor: theme.colors.gray[1] }}>
+            <Table.Th style={{ width: "100px", fontWeight: 600 }}>
+              Participant
+            </Table.Th>
+            <Table.Th style={{ width: "50px", fontWeight: 600 }}>Type</Table.Th>
+            <Table.Th style={{ width: "100%", fontWeight: 600 }}>
+              Content
+            </Table.Th>
           </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
+        </Table.Thead>
+        <Table.Tbody>
+          {chronologicalTurns.map((turn, index) => (
+            <Table.Tr
+              key={`me7-${turn.id}`}
+              style={{
+                borderBottom: `1px solid ${theme.colors.gray[2]}`,
+                marginBottom: theme.spacing.xs,
+              }}
+            >
+              {turn.role === "bot" && <BotRow turnId={turn.id} />}
+              {turn.role === "human" && <HumanRow turnId={turn.id} />}
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </div>
   );
 }
 
@@ -197,7 +261,10 @@ function BotRow({ turnId }: TurnRow) {
     throw Error(`Expected bot turn ${JSON.stringify(turn)}`); // typeguard
 
   let content: string[] = [];
+  let isToolCall = false;
+
   if (turn.type === "tool") {
+    isToolCall = true;
     for (const tool of turn.tool_calls) {
       const fn = tool.function.name;
       const args = redactPhoneNumbers(JSON.stringify(tool.function.arguments));
@@ -207,11 +274,62 @@ function BotRow({ turnId }: TurnRow) {
 
   const theme = useMantineTheme();
 
+  // Different background colors for different bot turn types
+  const backgroundColor = isToolCall
+    ? theme.colors.blue[0]
+    : theme.colors.green[0];
+
+  const borderLeft = isToolCall
+    ? `4px solid ${theme.colors.blue[4]}`
+    : `4px solid ${theme.colors.green[4]}`;
+
   return (
     <>
-      <Table.Td>{turn.role}</Table.Td>
-      <Table.Td>{turn.origin}</Table.Td>
-      <Table.Td style={{ flex: 1, minWidth: 0 }}>
+      <Table.Td
+        style={{
+          backgroundColor,
+          borderLeft,
+          fontWeight: 500,
+          width: "100px",
+          minWidth: "100px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: theme.spacing.xs,
+          }}
+        >
+          {isToolCall ? "🔧" : "🤖"} {turn.role}
+        </div>
+      </Table.Td>
+      <Table.Td
+        style={{
+          backgroundColor,
+          fontSize: "0.85rem",
+          color: theme.colors.gray[6],
+          width: "100px",
+          minWidth: "100px",
+        }}
+      >
+        {isToolCall ? (
+          <Badge size="xs" color="blue" variant="light">
+            tool
+          </Badge>
+        ) : (
+          <Badge size="xs" color="green" variant="light">
+            {turn.origin}
+          </Badge>
+        )}
+      </Table.Td>
+      <Table.Td
+        style={{
+          flex: 1,
+          minWidth: 0,
+          backgroundColor,
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -220,15 +338,43 @@ function BotRow({ turnId }: TurnRow) {
           }}
         >
           <div style={{ flex: 1, minWidth: 0 }}>
-            {content.map((item) => (
-              <div key={`d93-${item}`}> {item} </div>
+            {content.map((item, index) => (
+              <div
+                key={`d93-${item}-${index}`}
+                style={{
+                  fontFamily: isToolCall ? "monospace" : "inherit",
+                  fontSize: isToolCall ? "0.85rem" : "inherit",
+                  color: isToolCall ? theme.colors.blue[7] : "inherit",
+                  padding: isToolCall ? `${theme.spacing.xs}px 0` : "0",
+                  borderBottom:
+                    isToolCall && index < content.length - 1
+                      ? `1px solid ${theme.colors.blue[2]}`
+                      : "none",
+                }}
+              >
+                {isToolCall && "→ "}
+                {item}
+              </div>
             ))}
           </div>
-          <span>
+          <div
+            style={{
+              display: "flex",
+              gap: theme.spacing.xs,
+              alignItems: "flex-start",
+            }}
+          >
             {turn.status === "interrupted" && (
-              <Badge color="yellow">Interrupted</Badge>
+              <Badge color="yellow" size="sm">
+                Interrupted
+              </Badge>
             )}
-          </span>
+            {isToolCall && (
+              <Badge color="blue" size="sm" variant="outline">
+                {content.length} call{content.length > 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
         </div>
       </Table.Td>
     </>
@@ -241,11 +387,55 @@ function HumanRow({ turnId }: TurnRow) {
     throw Error(`Expected human turn ${JSON.stringify(turn)}`); // typeguard
   if (turn.origin === "hack") return;
 
+  const theme = useMantineTheme();
+
+  // Human turns get a different visual treatment
+  const backgroundColor = theme.colors.orange[0];
+  const borderLeft = `4px solid ${theme.colors.orange[4]}`;
+
   return (
     <>
-      <Table.Td> {turn.role}</Table.Td>
-      <Table.Td> {turn.type}</Table.Td>
-      <Table.Td> {turn.content}</Table.Td>
+      <Table.Td
+        style={{
+          backgroundColor,
+          borderLeft,
+          fontWeight: 500,
+          width: "100px",
+          minWidth: "100px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: theme.spacing.xs,
+          }}
+        >
+          👤 {turn.role}
+        </div>
+      </Table.Td>
+      <Table.Td
+        style={{
+          backgroundColor,
+          fontSize: "0.85rem",
+          color: theme.colors.gray[6],
+          width: "50px",
+          minWidth: "50px",
+        }}
+      >
+        <Badge size="xs" color="orange" variant="light">
+          {turn.type}
+        </Badge>
+      </Table.Td>
+      <Table.Td
+        style={{
+          backgroundColor,
+          fontStyle: "italic",
+          color: theme.colors.gray[8],
+        }}
+      >
+        "{turn.content}"
+      </Table.Td>
     </>
   );
 }
@@ -259,7 +449,7 @@ function HumanInTheLoop() {
   const callSid = router.query.callSid as string;
 
   const questionState = useAppSelector((state) =>
-    getQuestionState(state, callSid),
+    getQuestionState(state, callSid)
   );
 
   const questions = questionState ? Object.values(questionState) : [];
@@ -296,7 +486,7 @@ function QuestionRow({
   questionId: string;
 }) {
   const questionState = useAppSelector((state) =>
-    getQuestionState(state, callSid),
+    getQuestionState(state, callSid)
   );
   if (!questionState) return;
 
@@ -336,7 +526,7 @@ function AuxiliaryMessageTable() {
   const callSid = router.query.callSid as string;
 
   const auxMessageState = useAppSelector((state) =>
-    getAuxMessageState(state, callSid),
+    getAuxMessageState(state, callSid)
   );
 
   const messages = auxMessageState ? Object.values(auxMessageState) : [];
@@ -366,7 +556,7 @@ function AuxiliaryMessageTable() {
 
 function AuxMessageRow({ callSid, msgId }: { callSid: string; msgId: string }) {
   const auxMessageState = useAppSelector((state) =>
-    getAuxMessageState(state, callSid),
+    getAuxMessageState(state, callSid)
   );
   if (!auxMessageState) return;
 
@@ -383,13 +573,12 @@ function AuxMessageRow({ callSid, msgId }: { callSid: string; msgId: string }) {
   );
 }
 
-
 function SummarySection() {
   const router = useRouter();
   const callSid = router.query.callSid as string;
 
   const summaryState = useAppSelector((state) =>
-    getSummaryState(state, callSid),
+    getSummaryState(state, callSid)
   );
 
   return (

@@ -20,7 +20,7 @@ const toolFunctionRegistry = new Map<string, ToolExecutor<any>>([
   ...Object.entries({
     ...commonToolFunctions,
     askAgent,
-    transferToFlexAgent,
+    transferToAgent: transferToFlexAgent,
   }),
 ]);
 
