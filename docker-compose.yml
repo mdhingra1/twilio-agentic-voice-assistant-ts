@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  twilio-voice-assistant:
+    build: .
+    ports:
+      - "3333:3333"
+    env_file:
+      - .env
+    environment:
+      # Override specific vars for local development
+      - NODE_ENV=development
+      - PORT=3333
+      - HOSTNAME=localhost:3333
+    volumes:
+      # Mount logs directory for persistent logging
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3333/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

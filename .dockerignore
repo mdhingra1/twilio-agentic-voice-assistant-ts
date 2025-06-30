@@ -1,0 +1,60 @@
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output (will be built in container)
+dist/
+
+# Development files
+.env*
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Version control
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/*.txt
+*.log
+
+# UI build (not needed for backend)
+ui/node_modules/
+ui/dist/
+ui/.next/
+
+# Scripts (not needed for production)
+scripts/
+
+# Documentation
+*.md
+docs/
+
+# Test files
+*.test.*
+*.spec.*
+
+# Coverage
+coverage/
+
+# Docker files
+Dockerfile*
+docker-compose*
+
+# Temporary files
+*.tmp
+*.temp
