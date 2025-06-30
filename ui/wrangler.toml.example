@@ -1,0 +1,18 @@
+main = ".open-next/worker.js"
+name = "twilio-voice-assistant-ui"
+compatibility_date = "2025-03-25"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# Environment variables from .env file
+[vars]
+TWILIO_ACCOUNT_SID = ""
+TWILIO_API_KEY = ""
+TWILIO_API_SECRET = ""
+TWILIO_SYNC_SVC_SID = ""
+
+# Account selection (Cloudflare account id)
+account_id = ""
