@@ -27,3 +27,7 @@ coverage
 
 # misc
 /local
+
+#ui
+ui/.open-next
+ui/wrangler.toml
