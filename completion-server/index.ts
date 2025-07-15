@@ -10,6 +10,7 @@ import {
 } from "../modules/flex-transfer-to-agent/index.js";
 import { GovernanceService } from "../modules/governance/index.js";
 import { SummarizationService } from "../modules/summarization/index.js";
+import { MemoryExtractionService } from "../modules/memory-extraction/index.js";
 import { VectorStoreService } from "../services/vector-store/index.js";
 import { ContextRetriever } from "../services/vector-store/context-retriever.js";
 import {
@@ -44,7 +45,7 @@ const default_user = "f9708bce";
 // map of phone to user
 const phoneToUser: Record<string, string> = {
   "+12092421066": "f9708bce",
-  "+17783220513": "99b2a3c5",
+  "+17783220513": "aab1d0b3",
 };
 
 // Helper function to resolve userId from participantPhone
@@ -271,6 +272,9 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
   const summaryBot = new SummarizationService(store, agent, {
     frequency: 15 * 1000,
   });
+  const memoryBot = new MemoryExtractionService(store, agent, {
+    frequency: 15 * 1000,
+  });
 
   startRecording(callSid).then(({ mediaUrl }) => {
     log.success("/convo-relay", `call recording url: ${mediaUrl}`);
@@ -323,6 +327,11 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
     // start subconscious
     governanceBot.start();
     summaryBot.start();
+
+    // Memory extraction service start is async
+    memoryBot.start().catch((error) => {
+      console.error("Failed to start memory extraction service:", error);
+    });
   });
 
   relay.onPrompt(async (ev) => {
@@ -372,6 +381,7 @@ export const conversationRelayWebsocketHandler: WebsocketRequestHandler = (
   ws.on("close", async () => {
     governanceBot.stop();
     summaryBot.stop();
+    memoryBot.stop();
 
     log.info(
       "relay",

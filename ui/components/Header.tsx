@@ -1,7 +1,7 @@
 import { useAppSelector } from "@/state/hooks";
 import { getCallData } from "@/state/sessions";
-import { ActionIcon, Text, useMantineTheme } from "@mantine/core";
-import { IconRecordMail } from "@tabler/icons-react";
+import { ActionIcon, Text, useMantineTheme, Group, Button } from "@mantine/core";
+import { IconRecordMail, IconBrain } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { HoverCard } from "@mantine/core";
@@ -17,16 +17,28 @@ export function Header() {
 
   return (
     <header>
-      <Link href="/">
-        <img className="header-logo" alt="logo" src={"/logo.png"} />
-      </Link>
+      <Group justify="space-between" align="center" h="100%">
+        <Link href="/">
+          <img className="header-logo" alt="logo" src={"/logo.png"} />
+        </Link>
 
-      <div
-        style={{ display: "flex", alignItems: "center", gap: theme.spacing.xs }}
-      >
-        {callSid && <Text size="xs">{callSid}</Text>}
-        {callSid && <RecordingLink callSid={callSid} />}
-      </div>
+        <Group gap="md">
+          <Link href="/memory-schemas" style={{ textDecoration: 'none' }}>
+            <Button 
+              variant="subtle" 
+              leftSection={<IconBrain size={16} />}
+              size="sm"
+            >
+              Memory Schemas
+            </Button>
+          </Link>
+          
+          <Group gap="xs">
+            {callSid && <Text size="xs">{callSid}</Text>}
+            {callSid && <RecordingLink callSid={callSid} />}
+          </Group>
+        </Group>
+      </Group>
     </header>
   );
 }

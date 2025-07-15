@@ -26,13 +26,14 @@ const handler: NextApiHandler = async (req: NextApiRequest, res) => {
           .syncMaps.page({ pageSize: 20 })
           .then((data) => data.instances)
       : pageNumber === 2
-        ? await client.sync.v1.services(TWILIO_SYNC_SVC_SID).syncMaps.list() // hack: just fetching them all bc I couldn't figure out paging
-        : [];
+      ? await client.sync.v1.services(TWILIO_SYNC_SVC_SID).syncMaps.list() // hack: just fetching them all bc I couldn't figure out paging
+      : [];
 
   const records = Object.values(
     result
+      .filter((val) => val.uniqueName !== "memory_schemas")
       .map(toSessionMetaData)
-      .reduce((acc, cur) => Object.assign(acc, { [cur.callSid]: cur }), {}), // deduplicate
+      .reduce((acc, cur) => Object.assign(acc, { [cur.callSid]: cur }), {}) // deduplicate
   );
 
   res.json(records);

@@ -61,7 +61,7 @@ export const syncSlice = createSlice({
 
     removeNewCallId(state, { payload }: PayloadAction<string>) {
       state.newCallSids = state.newCallSids.filter(
-        (callSid) => payload === callSid,
+        (callSid) => payload === callSid
       );
     },
 
@@ -73,7 +73,7 @@ export const syncSlice = createSlice({
         callSid: string;
         context?: FetchStatus;
         turns?: FetchStatus;
-      }>,
+      }>
     ) {
       const current = state.callFetchStatusMap[payload.callSid];
       const context = payload.context ?? current?.context ?? "started";
@@ -83,7 +83,7 @@ export const syncSlice = createSlice({
 
     setSyncConnectionState(
       state,
-      { payload }: PayloadAction<SyncConnectionState>,
+      { payload }: PayloadAction<SyncConnectionState>
     ) {
       state.syncConnectionState = payload;
     },
@@ -170,7 +170,8 @@ export async function fetchAllCalls(dispatch: AppDispatch) {
 
     while (hasMore) {
       const response = await fetch(`/api/calls?page=${pageNumber}`);
-      if (!response.ok) throw new Error("Network response was not ok");
+      if (!response.ok)
+        throw new Error(response.statusText + " " + response.status);
 
       const data = (await response.json()) as SessionMetaData[];
 
@@ -261,7 +262,7 @@ export function useInitializeCall(callSid?: string) {
   const syncClient = useSyncClient();
 
   const callStatuses = useAppSelector(
-    (state) => callSid && getCallFetchStatus(state, callSid),
+    (state) => callSid && getCallFetchStatus(state, callSid)
   );
 
   return useEffect(() => {
@@ -270,7 +271,7 @@ export function useInitializeCall(callSid?: string) {
     if (callStatuses) return;
 
     dispatch(
-      setCallFetchStatus({ callSid, context: "started", turns: "started" }),
+      setCallFetchStatus({ callSid, context: "started", turns: "started" })
     );
 
     const initSyncContext = async () => {
@@ -279,7 +280,7 @@ export function useInitializeCall(callSid?: string) {
       const map = await syncClient.map(uniqueName);
 
       dispatch(
-        addOneSession({ callSid: callSid, id: callSid } as StoreSessionContext),
+        addOneSession({ callSid: callSid, id: callSid } as StoreSessionContext)
       );
 
       map.on("itemAdded", (ev) =>
@@ -288,8 +289,8 @@ export function useInitializeCall(callSid?: string) {
             callSid,
             key: ev.item.key,
             value: ev.item.data,
-          } as SetSessionContext),
-        ),
+          } as SetSessionContext)
+        )
       );
 
       map.on("itemUpdated", (ev) =>
@@ -298,8 +299,8 @@ export function useInitializeCall(callSid?: string) {
             callSid,
             key: ev.item.key,
             value: ev.item.data,
-          } as SetSessionContext),
-        ),
+          } as SetSessionContext)
+        )
       );
 
       map.on("itemRemoved", (ev) =>
@@ -308,8 +309,8 @@ export function useInitializeCall(callSid?: string) {
             callSid,
             key: ev.key,
             value: ev?.undefined, // hack: undefined with item removed
-          } as SetSessionContext),
-        ),
+          } as SetSessionContext)
+        )
       );
 
       const result = await map.getItems();
@@ -319,7 +320,7 @@ export function useInitializeCall(callSid?: string) {
             callSid,
             key: item.key,
             value: item.data,
-          } as SetSessionContext),
+          } as SetSessionContext)
         );
 
       dispatch(setCallFetchStatus({ callSid, context: "done" }));

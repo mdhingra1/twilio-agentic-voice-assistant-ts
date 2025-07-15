@@ -1,6 +1,7 @@
 import { GovernanceContainer } from "@/components/GovernanceContainer";
 import { HistoricalContextContainer } from "@/components/HistoricalContextContainer";
 import { UserProfileContainer } from "@/components/UserProfileContainer";
+import { ExtractedMemoriesContainer } from "@/components/ExtractedMemoriesContainer";
 import { TruncatedText } from "@/components/TruncateText";
 import { useAppSelector } from "@/state/hooks";
 import {
@@ -181,6 +182,8 @@ function AIContextSystem() {
         gap: theme.spacing.sm,
       }}
     >
+      <ExtractedMemoriesContainer callSid={callSid} />
+
       <Paper className="paper">
         <Title order={3}>Conversation Memory</Title>
       </Paper>
